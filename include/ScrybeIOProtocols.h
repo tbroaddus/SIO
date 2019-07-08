@@ -13,6 +13,8 @@
 
 #define BUFFERSIZE 3000
 
-#define MAXCONNECTIONS
+#define MAXCONNECTIONS 10
+
+#define LISTENTIMEOUT 100 //in millseconds
 
 #endif
