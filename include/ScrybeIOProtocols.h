@@ -4,10 +4,6 @@
 #ifndef SCRYBEIOPROTOCOLS_H
 #define SCRYBEIOPROTOCOLS_H
 
-#define EMPTY -1
-#define DONE 0
-#define OK 1
-
 //Number of desired threads (1 thread always dedicated to listening)
 #define THREADCOUNT 4
 

@@ -15,6 +15,9 @@
 #include "LockQueue.h"
 #include "ScrybeIOProtocols.h"
 
+#define DONE 0
+#define OK 1
+
 using namespace std::chrono;
 using std::cout;
 using std::endl;
