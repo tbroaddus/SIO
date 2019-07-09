@@ -19,6 +19,13 @@
 #include "ScrybeIOProtocols.h"
 #include "LockQueue.h"
 
+// Parameters to be set
+#define THREADCOUNT 4		//	Number of desired threads (1 thread always
+							//	dedicated to listening)
+#define MAXEVENTS 10		//	Max events returned per handler thread
+#define LISTENTIMEOUT 100	//	in milliseconds
+#define HANDLETIMEOUT 100	//	in milliseconds
+
 using std::cout;
 using std::endl;
 using std::cerr;
@@ -53,10 +60,9 @@ class IODevice {
 							stop = true;
 							L1.join();
 							H1.join();
-							break;
+							return 0;
 						}
 					}
-					return 0;
 				
 				case 3:
 					std::thread L1(Listen);
@@ -69,10 +75,9 @@ class IODevice {
 							L1.join();
 							H1.join();
 							H2.join();
-							break;
+							return 0;
 						}
 					}
-					return 0;
 
 				case 4:	
 					std::thread L1(Listen); 
@@ -87,10 +92,9 @@ class IODevice {
 							H1.join();
 							H2.join();
 							H3.join();
-							break;
+							return 0;
 						}
 					}
-					return 0;	
 
 				default:
 					cerr << "Invalid THREADCOUNT... Select in range 2-4" << endl;
@@ -177,7 +181,7 @@ class IODevice {
 			}
 			close(listen_sock);
 		}
-		
+		//TODO: Handle() is going to need a little more work towards the end...		
 		// Handling thread(s)
 		void Handle() {
 			int epoll_fd = epoll_create1(0);
@@ -201,10 +205,20 @@ class IODevice {
 					}
 				}
 				//TODO: Find a value to replace this 1 with
-				int nfds = epoll_wait(epoll_fd, &event, 1, LISTENTIMEOUT);
+				int nfds = epoll_wait(epoll_fd, &event, MAXEVENTS, HANDLETIMEOUT);
 				for (int i = 0; i < n; i++) {
 					int client_sock = events[i].data.fd;
-					handle(client_sock);
+
+					/*
+					   May have to actually read the message and pass it to
+					   handle_accept instead of passing the socket fd. There 
+					   could be a EWOULDBLOCK or EAGAIN exception with no easy way to handle
+					   it in handle_accept, best to handle it here. we can pass
+					   the message and deserialize it in handle_accept.
+				    */
+
+					*handle_accept(client_sock); //TODO: do we need the *
+												 //		before?
 					//TODO: Close sock? Remove from epoll?
 					close(client_sock); // Check to see if you would want to
 										// this here. 
@@ -216,6 +230,7 @@ class IODevice {
 			}
 		}
 
+		// Private member variables
 		LockQueue IO_fd_queue;
 		int port;
 		bool stop;
