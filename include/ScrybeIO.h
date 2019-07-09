@@ -50,6 +50,7 @@ class IODevice {
 					while(true) {
 						input = getchar();
 						if (input == 'q') {
+							stop = true;
 							L1.join();
 							H1.join();
 							break;
@@ -64,6 +65,7 @@ class IODevice {
 					while(true) {
 						input = getchar();
 						if (input == 'q') {
+							stop = true;
 							L1.join();
 							H1.join();
 							H2.join();
@@ -80,6 +82,7 @@ class IODevice {
 					while(true) {
 						input = getchar();
 						if (input == 'q') {
+							stop = true;
 							L1.join();
 							H1.join();
 							H2.join();
@@ -97,6 +100,7 @@ class IODevice {
 
 	private:
 
+		// Listening thread
 		void Listen() {
 			int listen_sock = socket(AF_INET, SOCKET_STREAM | SOCK_NONBLOCK, 0);
 			if (listen_sock == -1) {
@@ -131,11 +135,10 @@ class IODevice {
 			if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_sock, &event) ==
 						-1) {
 				cerr << "Failed to call epoll_ctl()" << endl;
-				close(listen_sock());
+				close(listen_sock);
 			}
-			
+
 			while(true) {
-					
 				int nfds = epoll_wait(epoll_fd, &event, 1, LISTENTIMEOUT);
 				if (nfds == -1)	{
 					cerr << "Failure in epoll_wait()";
@@ -160,7 +163,8 @@ class IODevice {
 						int flags = fcntl (client_sock, F_GETFL, 0);
 						flags |= O_NONBLOCK;
 						fcntl (client_sock, F_SETFL, flags);
-						IO_fd_queue.push(client_sock);
+						IO_fd_queue.push(client_sock); // client_sock pushed to
+													   // LockQueue
 					}
 				}
 
@@ -173,18 +177,20 @@ class IODevice {
 			}
 			close(listen_sock);
 		}
-
+		
+		// Handling thread(s)
 		void Handle() {
 			int epoll_fd = epoll_create1(0);
 			if (epoll_fd == -1) 
 				cerr << "Failed to create handle epoll" << endl;
 			struct epoll_event event;
-			event.events = EPOLLIN | EPOLLET;
+			event.events = EPOLLIN | EPOLLET; // Edge triggered read events
 
 			while(true) {
 				if (!IO_fd_queue.empty() || finish != true) {
 					int new_sock = IO_fd_queue.pop();
-					if (new_sock != EMPTY) {
+					if (new_sock != EMPTY) {	// Queue could now be empty,
+												// must check.
 						event.data.fd = new_sock;
 						if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_sock, &event)
 								== -1) {
@@ -197,8 +203,11 @@ class IODevice {
 				//TODO: Find a value to replace this 1 with
 				int nfds = epoll_wait(epoll_fd, &event, 1, LISTENTIMEOUT);
 				for (int i = 0; i < n; i++) {
-					handle(events[i].data.fd);
-					//TODO: Close sock?
+					int client_sock = events[i].data.fd;
+					handle(client_sock);
+					//TODO: Close sock? Remove from epoll?
+					close(client_sock); // Check to see if you would want to
+										// this here. 
 				}
 				//TODO: Is this proper? Could poll over sockets
 				//		one last time...
