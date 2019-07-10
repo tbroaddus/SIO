@@ -67,7 +67,7 @@ namespace ScrybeIO {
 		return 1;
 	}
 
-
+	//TODO: Add procedure of exiting the event_loop via the bool& done variable
 	static int event_loop(void(*handle)(std::string message), int listen_sock, int
 			max_events, int buff_size, int timeout, bool& done) {
 		struct epoll_event event;
@@ -164,6 +164,8 @@ namespace ScrybeIO {
 					}
 
 					cout << bytes_rec << " bytes received" << endl;
+
+					//TODO: Correct way to call a function using its pointer?
 					*handle(std::string(buff));
 					close = true;
 
