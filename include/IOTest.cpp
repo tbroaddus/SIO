@@ -32,9 +32,9 @@ int main() {
 	cout << fd << endl;
 	bool done = false;
 
-	// Starting event loop with the follow arguments...
-	// ointer to the handle_accept function defined above
-	// file descriptor of the listen sock created in create_listen_sock()
+	// Starting event loop with the following arguments...
+	// Pointer to the handle_accept function defined above
+	// File descriptor of the listen sock created in create_listen_sock()
 	// A value of 10 for up to 10 events returned in epoll_wait();
 	// A value of 4096 for buffer size
 	// A value of 5000 for a 5000 millisecond (5 Second) wait time for epoll_wait(); 
