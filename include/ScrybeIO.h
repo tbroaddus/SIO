@@ -10,6 +10,7 @@
 #include <string>
 
 #include <unistd.h>
+#include <string.h>
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <arpa/inet.h>
@@ -25,17 +26,16 @@ using std::cerr;
 namespace ScrybeIO {
 
 
-	/**	create_listen_sock() 
-
-		info: creates a listening socket and binds it to a socket address.
-		@param port number in type int
-		@return -1 for failure, otherwise returns listening socket's file
-				 descriptor
+	// create_listen_sock()
+	/**	
+	  info: creates a listening socket and binds it to a socket address.
+	  @param int port
+	  @return -1 for failure, otherwise listening socket fd
 	**/
-	static int create_listen_sock(int port) {
-		int listen_sock = socket(AF_INET, SOCKET_STREAM | SOCK_NONBLOCK, 0);
+	static int create_listen_sock(int port, int max_conn) {
+		int listen_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 		if (listen_sock == -1) {
-			cerr << "Cannot create listening socket" << endl;
+			cerr << "Cannot create listening socket\n";
 			return -1;
 		}
 		sockaddr_in listen_addr;
@@ -45,84 +45,115 @@ namespace ScrybeIO {
 		inet_pton(AF_INET, "0.0.0.0", &listen_addr.sin_addr);
 		if (bind(listen_sock, (sockaddr*)&listen_addr, sizeof(listen_addr)) ==
 				-1) {
-			cerr < "Failure to bind listening sock" << endl;
+			cerr << "Failure to bind listening sock\n";
 			close(listen_sock);
+			return -1;
+		}
+		if (listen(listen_sock, max_conn) == -1) {
+			cerr << "Failed to listen\n";	
 			return -1;
 		}
 		return listen_sock;
 	}
 
 
+
+	//TODO: Determine if this function is needed.
 	/** listen() 
 		info: sets socket to listen, specifies maximum connections in listening
 			  queue.
 		@param int listen_sock, int max_conn
 		@return -1 for failure, otherwise returns 1 for success
 	**/
+	/*
 	static int listen (int listen_sock, int max_conn) {
 		if (listen(listen_sock, max_conn) == -1) {
-			cerr << "Failed to listen" << endl;
+			cerr << "Failed to listen\n";
 			return -1;
 		}
 		return 1;
 	}
+	*/
 
-	//TODO: Add procedure of exiting the event_loop via the bool& done variable
+
+	
+	//TODO: Add procedure for exiting the event_loop via the bool& done variable
+	// event_loop()
+	/**
+	  info: Starts an IO event loop implemented using EPOLL
+	  @oaram void(*f)(arg1, arg2,...argn)
+	  @param int listen_sock
+	  @oaram int max_events
+	  @param int buff_size
+	  @param int timeout 
+	  @param bool& done
+	  @return -1 for failure, 1 for success
+	**/
 	static int event_loop(void(*handle)(std::string message), int listen_sock, int
 			max_events, int buff_size, int timeout, bool& done) {
-		struct epoll_event event;
-		event.events = EPOLLIN | EPOLLET; // Edge triggered reads
-		event.data.fd = listen_sock;
-		if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_sock, &event) == -1) {
-			cerr << "Failed to call epoll_ctl()" << endl;
+		int epoll_fd = epoll_create1(0);
+		if (epoll_fd == -1) {
+			cerr << "Failed to create epoll\n";
 			close(listen_sock);
 			return -1;
 		}
+
+		struct epoll_event event, events[max_events];
+		event.events = EPOLLIN | EPOLLET; // Edge triggered reads
+		event.data.fd = listen_sock;
+		if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_sock, &event) == -1) {
+			cerr << "Failed to call epoll_ctl()\n";
+			close(listen_sock);
+			return -1;
+		}
+		
 		while(true) {
-			int nfds = epoll_wait(epoll_fd, &event, max_events, timeout);
+			// cout for testing purposes
+			cout << "timed out: new event loop!" << endl;
+			int nfds = epoll_wait(epoll_fd, events, max_events, timeout);
 			if (nfds == -1) {
-				cerr << "Failure in epoll_wait()" << endl;
+				cerr << "Failure in epoll_wait()\n";
 				close(listen_sock);
 				return -1;
 			}
 
-			for (int i = 0; i < nfds, i++) {
-				if((event[i].events & EPOLLERR) || (event[i].events &
+			for (int i = 0; i < nfds; i++) {
+				if((events[i].events & EPOLLERR) || (events[i].events &
 							EPOLLHUP)) {
-					cerr << "EPOLLERR or EPOLLHUP exception" << endl;
-					close(event[i].data.fd);
-					if(epoll_ctl(epoll_fd, EPOLL_CTL_DEL, event[i].data.fd,
+					cerr << "EPOLLERR or EPOLLHUP exception\n";
+					close(events[i].data.fd);
+					if(epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd,
 								NULL) == -1) {
-						cerr << "Could not delete client socket from epoll"
-								<< endl;
+						cerr << "Could not delete client socket from epoll\n";
+								
 						return -1;
+					}
 				}
 
-				if (event[i].data.fd == listen_sock) {
+				if (events[i].data.fd == listen_sock) {
 					while(true) {
-						struct sockaddr client_addr;
+						struct sockaddr_in client_addr;
 						socklen_t client_size = sizeof(client_addr);
 						int client_sock = accept(listen_sock,
 								(sockaddr*)&client_addr, &client_size);
 						if (client_sock == -1) {
-							if ((errno == EAGAIN) || (errno = EWOULDBLOCK))
+							if ((errno == EAGAIN) || (errno == EWOULDBLOCK))
 								break;	// Added all new connections to epoll
 							else {
-								cerr << "Failed to accept" << endl;
+								cerr << "Failed to accept\n";
 								break;	// Could not accept
 							}
 						}
 						int flags = fcntl(client_sock, F_GETFL, 0);
 						flags |= O_NONBLOCK;
-						fcntl(client_sock, FSETFL, flags);
+						fcntl(client_sock, F_SETFL, flags);
 						event.events = EPOLLIN | EPOLLET;
 						event.data.fd = client_sock;
-						if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client_sock, &event)
+						if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_sock, &event)
 								== -1) {
-							cerr << "Failure in epoll_ctl to add fd" << endl;
+							cerr << "Failure in epoll_ctl to add fd\n"; 
 							return -1;
 						}
-
 						// For testing purposes
 						char host[NI_MAXHOST];
 						char svc[NI_MAXSERV];
@@ -133,7 +164,7 @@ namespace ScrybeIO {
 								NI_MAXSERV, 0);
 
 						if (result) {
-							cout << host << " connected on " << service <<
+							cout << host << " connected on " << svc <<
 								endl;
 						}
 						else {
@@ -148,41 +179,44 @@ namespace ScrybeIO {
 					// TODO while(true)?
 					char buff[buff_size];
 					memset(buff, 0, buff_size);
-					bool close = false;
-					int bytes_rec = recv(event[i].data.fd, buff, buff_size,
+					bool close_fd = false;
+					int bytes_rec = recv(events[i].data.fd, buff, buff_size,
 							0);
 					if(bytes_rec < 0) {
 						if (errno != EWOULDBLOCK && errno != EAGAIN) {
-							cerr << "Could not receive message with recv" << endl;
-							close = true;
+							cerr << "Could not receive message with recv\n";
+							close_fd = true;
 						}
 					}
 
 					if(bytes_rec == 0) {
 						cout << "Connection closed" << endl;
-						close = true;
+						close_fd = true;
 					}
 
 					cout << bytes_rec << " bytes received" << endl;
+					// handle_accept from IOTest.cpp
+					(*handle)(std::string(buff));
+					close_fd = true;
 
-					//TODO: Correct way to call a function using its pointer?
-					*handle(std::string(buff));
-					close = true;
-
-					if(close) {
-						close(event[i].data.fd);
+					//TODO: useless if statement if no infinite while()
+					if(close_fd) {
 						// Specify &event instead of NULL to be portable with
-						// kernels before 2.6.9
-						if(epoll_ctl(epoll_fd, EPOLL_CTL_DEL, event[i].data.fd,
+						// kernels before 2.6.9 if that is a concern.
+						if(epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd,
 								NULL) == -1) {
-							cerr << "Could not delete client socket from epoll"
-								<< endl;
+							cerr << "Could not delete client socket from epoll\n";
+								
 							return -1;
 						}
 					} 
 				} // else 
-			} // if 
-		} // while
+			} // if
+		   // TODO: Does anything need to be done for clean up?
+		   if(done) {
+			   return 1; // BE SURE TO CLOSE LISTEN SOCK FROM CALLING FUNCTION
+		   }
+		} // for 
 	} // event_loop() 
 } // namespace ScrybeIO
 #endif
