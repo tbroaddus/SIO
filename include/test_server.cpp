@@ -26,10 +26,10 @@ void handle_accept(std::string request) {
 
 int main() {
 
-	int fd = ScrybeIO::create_listen_sock(54000, 10);
-	if(fd == -1)
+	int listen_fd = ScrybeIO::create_listen_sock(54000, 10);
+	if(listen_fd == -1)
 		cerr << "Failed to create and bind listening socket\n";
-	cout << fd << endl;
+	cout << listen_fd << endl;
 	bool done = false;
 
 	// Starting event loop with the following arguments...
@@ -38,7 +38,12 @@ int main() {
 	// A value of 10 for up to 10 events returned in epoll_wait();
 	// A value of 4096 for buffer size
 	// A value of 5000 for a 5000 millisecond (5 Second) wait time for epoll_wait(); 
-	std::thread t1(ScrybeIO::event_loop, &handle_accept, fd, 10, 4096, 5000, std::ref(done));
+	// TODO: Test multiple threads
+	//std::thread t1(ScrybeIO::event_loop, &handle_accept, listen_fd, 10, 4096, 5000, std::ref(done));
+	std::thread t1(ScrybeIO::event_loop, &handle_accept, listen_fd, 10, 4096,
+			5000, std::ref(done));
+	std::thread t2(ScrybeIO::event_loop, &handle_accept, listen_fd, 10, 4096,
+			5000, std::ref(done));
 
 	cout << "Enter 'q' to stop program" << endl;
 	char input;
@@ -47,10 +52,11 @@ int main() {
 		if (input == 'q') {
 			done = true;
 			t1.join();
+			t2.join();
 			break;
 		}
 	}
-	close(fd);
+	close(listen_fd); // USER RESPONSIBLE FOR CLOSING LISTENING SOCKET 
 	cout << "BOOM BABY!" << endl;
 	return 0;
 }

@@ -25,11 +25,17 @@ using std::cerr;
 
 namespace ScrybeIO {
 
+// TODO: Have separate namespace for these functions
+
 
 	// create_listen_sock()
 	/**	
-	  info: creates a listening socket and binds it to a socket address.
+	  info: 
+		Creates a listening socket and binds it to a socket address.
+		User provides desired local port and max number of connection requests
+		in the listening queue.
 	  @param int port
+	  @param max_conn
 	  @return -1 for failure, otherwise listening socket fd
 	**/
 	static int create_listen_sock(int port, int max_conn) {
@@ -59,6 +65,7 @@ namespace ScrybeIO {
 
 
 	//TODO: Determine if this function is needed.
+	// KEEPING FOR NOW.
 	/** listen() 
 		info: sets socket to listen, specifies maximum connections in listening
 			  queue.
@@ -80,7 +87,12 @@ namespace ScrybeIO {
 	//TODO: Add procedure for exiting the event_loop via the bool& done variable
 	// event_loop()
 	/**
-	  info: Starts an IO event loop implemented using EPOLL
+	  info: 
+		Starts an IO event loop implemented using EPOLL.
+		User provides a function to handle client requests, listening socket
+		file descriptor, max number of events returned from epoll_create(),
+		message buffer size, timeout period (in milliseconds), a bool variable
+		for the function stop procedure.
 	  @oaram void(*f)(arg1, arg2,...argn)
 	  @param int listen_sock
 	  @oaram int max_events
@@ -121,7 +133,7 @@ namespace ScrybeIO {
 				if((events[i].events & EPOLLERR) || (events[i].events &
 							EPOLLHUP)) {
 					cerr << "EPOLLERR or EPOLLHUP exception\n";
-					close(events[i].data.fd);
+					// close(events[i].data.fd); NOT NEEDED
 					if(epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd,
 								NULL) == -1) {
 						cerr << "Could not delete client socket from epoll\n";

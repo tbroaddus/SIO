@@ -1,5 +1,16 @@
 //	File:		ScrybeIO_Old.h
 //	Author:		Tanner Broaddus
+/*
+	IMPORTANT:
+	This will NOT be a part of the final package. I am only keeping this around
+	because I will potentially build a multithreaded IO device and this is good
+	to reference back on. Not much time should be waisted looking over this
+	file, it will eventually be removed.
+
+	- Tanner
+*/
+
+
 
 #ifndef	SCRYBEIO_OLD_H 
 #define	SCRYBEIO_OLD_H 
