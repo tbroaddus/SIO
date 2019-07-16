@@ -61,28 +61,6 @@ namespace ScrybeIO {
 		}
 		return listen_sock;
 	}
-
-
-
-	//TODO: Determine if this function is needed.
-	// KEEPING FOR NOW.
-	/** listen() 
-		info: sets socket to listen, specifies maximum connections in listening
-			  queue.
-		@param int listen_sock, int max_conn
-		@return -1 for failure, otherwise returns 1 for success
-	**/
-	/*
-	static int listen (int listen_sock, int max_conn) {
-		if (listen(listen_sock, max_conn) == -1) {
-			cerr << "Failed to listen\n";
-			return -1;
-		}
-		return 1;
-	}
-	*/
-
-
 	
 	//TODO: Add procedure for exiting the event_loop via the bool& done variable
 	// event_loop()
