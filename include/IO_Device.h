@@ -240,7 +240,7 @@ class IODevice {
 					}
 					if (han_fail_count == THREADCOUNT - 1) {
 						F_master_fail = true;
-						break;
+						continue;
 					}
 					int nfds = epoll_wait(acc_epoll_fd, events, 1, ACCEPT_TIMEOUT);
 					if (nfds == -1) {
@@ -259,9 +259,9 @@ class IODevice {
 									break; // Added all new connections 
 								else {
 									cerr << "Failed to accept\n";
-									s_accept_fail++;
-									s_accept_loop = -1;
-									if (s_accept_fail == ACCEPT_FAIL_LIMIT) {
+									n_accept_fail++;
+									n_accept_loop = -1;
+									if (n_accept_fail == ACCEPT_FAIL_LIMIT) {
 										F_acc_fail = true;
 									}
 									break; // could not accept;
@@ -276,19 +276,23 @@ class IODevice {
 										&event) == -1) {
 								cerr << "Failure in epoll_ctl to add fd\n";
 								close(client_sock);
-								s_add_fail++;
-								s_add_loop = -1;
-								if (s_add_fail == ADD_FAIL_LIMIT) {
+								n_add_fail++;
+								n_add_loop = -1;
+								if (n_add_fail == ADD_FAIL_LIMIT) {
 									F_acc_fail = true;
 								}
 								break;
 							}
 							s_accept_loop++;
 							s_add_loop++;
-							if(s_accept_loop == ACCEPT_LOOP_RESET) 
-								s_accept_loop = 0;
-							if (s_add_loop == ADD_LOOP_RESET) 
-								s_add_loop = 0;
+							if(s_accept_loop == ACCEPT_LOOP_RESET) {
+								n_accept_fail = 0;
+								n_accept_loop = 0;
+							}
+							if (s_add_loop == ADD_LOOP_RESET) {
+								n_add_fail = 0;
+								n_add_loop = 0;
+							}
 
 							// Testing purposes 
 							char host[NI_MAXHOST];
