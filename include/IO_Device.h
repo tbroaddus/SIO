@@ -100,8 +100,19 @@ class IODevice {
 			}
 		// TODO: FIGURE THIS SH*T OUT
 			for(int i = 0; i < THREADCOUNT-1; i++) {
+				handler_vec.pushback(create_handler());
+			}
+
+			std::thread L1(acceptor_L1.accept_conns);
+
+			for(handler _handler : handler_vec) {
+				thread_vec.pushback(std::thread(_handler.handle_conns));
+			}
+
+			while(true) {
 
 			}
+
 			return 1;
 		} // start() 
 
@@ -109,7 +120,7 @@ class IODevice {
 	private:
 
 		// struct acceptor 
-		struct acceptor() {
+		struct acceptor {
 
 			void accept_conns() {
 
@@ -130,14 +141,17 @@ class IODevice {
 		} // struct handler
 
 		// TODO: FIGURE THIS SH*T OUT
-		const std::shared_ptr& create_handler() {
-			return 	
+		struct handler create_handler() {
+			struct handler _handler;
+			return _handler; 	
 		}
 
+
+		/*
 		// TODO: FIGURE THIS SH*T OUT
 		const std::thread& create_thread(struct handler& handler_ref) {
 			return new std::thread(handler_ref.handle_conns);
-
+		*/
 
 
 		// Private member variables
