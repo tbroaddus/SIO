@@ -1,4 +1,4 @@
-//	File:		IOTest.cpp
+//	File:		test_server.cpp
 //	Author:		Tanner Broaddus
 //	NOTICE:		If using GNU compiler, include -pthread when compiling 
 

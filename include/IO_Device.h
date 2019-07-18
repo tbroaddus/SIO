@@ -32,7 +32,7 @@ using std::cerr;
 
 //					MACROS
 // --------------------------------------------
-#define THREADCOUNT 2 
+#define THREADCOUNT 4 
 #define BUFFERSIZE 4096
 #define ACCEPT_FAIL_LIMIT 5
 #define ACCEPT_LOOP_RESET 10
@@ -48,9 +48,10 @@ using std::cerr;
 namespace ScrybeIO {
 
 
+	
 // IODevice type
 class IODevice {
-
+	
 
 //					Public
 //-------------------------------------------------------------------------------------
@@ -68,8 +69,14 @@ class IODevice {
 		// TODO: needed?
 		~IODevice() {}
 
+		
+		// Acceptor and handler now have access to IODevices private members
+		friend struct acceptor;
+		friend struct handler;
 
-		// listen()
+
+
+		// set_listen()
 		/**
 			info:
 				Creates, binds, and starts listening socket. Should only be
@@ -91,7 +98,7 @@ class IODevice {
 			sockaddr_in listen_addr;
 			listen_addr.sin_family = AF_INET;
 			listen_addr.sin_port = htons(port);
-			inet_pton(AF_INET, INADDR_ANY, &listen_addr.sin_addr);
+			inet_pton(AF_INET, "0.0.0.0", &listen_addr.sin_addr);
 			if (bind(listen_sock, (sockaddr*)&listen_addr, sizeof(listen_addr))
 					== -1) {
 					cerr << "Failure to bind listening sock\n";
@@ -105,6 +112,7 @@ class IODevice {
 			F_listening = true;
 			return 1;
 		} // listen()
+
 
 
 		// TODO: Keep track of running
@@ -146,14 +154,17 @@ class IODevice {
 				handler_vec.push_back(create_handler());
 			}
 
-			std::thread L1(acceptor_L1.accept_conns);
-			thread_vec.push_back(L1);
+			std::thread L1(&acceptor::accept_conns, &acceptor_L1, std::ref(*this));
+			thread_vec.push_back(std::move(L1));
 
-			for(handler _handler : handler_vec) {
-				thread_vec.push_back(std::thread(_handler.handle_conns));
+			for(handler& _handler : handler_vec) {
+				thread_vec.push_back(std::move(std::thread(&handler::handle_conns,
+								&_handler, std::ref(*this))));
+
 			}
 			return 1;
 		} // start()
+
 
 
 		// TODO: Must check if running (bool running)
@@ -168,6 +179,8 @@ class IODevice {
 
 		} // thread_check();
 
+		
+
 		//TODO: Maybe?
 		//failure_report()
 		std::string failure_report() const {
@@ -175,9 +188,7 @@ class IODevice {
 		} //failure_report()
 
 
-
-		// TODO: Any potential errors to detect?
-		// TODO: Check if a master fail, return -1 if so.
+		
 		// stop()
 		const int stop() {
 			if(F_running != true)
@@ -194,7 +205,7 @@ class IODevice {
 		} // stop()
 
 
-
+		//TODO: Test reset functionality
 		// reset()
 		const int reset() {
 			if (F_reset_callable == false)
@@ -211,42 +222,44 @@ class IODevice {
 		} // reset()
 
 
+
 	//						Private
 	//-------------------------------------------------------------------------------------
-	private:
 
+	private:
 		// struct acceptor 
 		struct acceptor {
 
-			void accept_conns() {
+			void accept_conns(IODevice& IODev) {
 				struct epoll_event event, events[1]; // One because we are only wanting
-				                              // to observe the listening
-											  // socket.
+			   		                              // to observe the listening
+												  // socket.
 				// Main event loop
 				while(true) {
-					if (F_master_fail == true || F_stop == true) {
-						close(listen_sock);
-						F_listening = false;
+					cout << "Acceptor loop executing" << endl;
+					if (IODev.F_master_fail == true || IODev.F_stop == true) {
+						close(IODev.listen_sock);
+						IODev.F_listening = false;
 						break; 
 					}
 					if (F_acc_fail == true) {
-						F_master_fail = true;
-						close(listen_sock);
-						F_listening = false;
+						IODev.F_master_fail = true;
+						close(IODev.listen_sock);
+						IODev.F_listening = false;
 						break;
 					}
 					// Checking to see if handler threads are still
 					// functioning.
 					int han_fail_count = 0;
-					for (handler& _handler : handler_vec) {
+					for (handler& _handler : IODev.handler_vec) {
 						if (_handler.F_han_fail == true)
 							han_fail_count++;
 					}
 					if (han_fail_count == THREADCOUNT - 1) {
-						F_master_fail = true;
+						IODev.F_master_fail = true;
 						continue;
 					}
-					int nfds = epoll_wait(acc_epoll_fd, events, 1, ACCEPT_TIMEOUT);
+					int nfds = epoll_wait(IODev.acc_epoll_fd, events, 1, ACCEPT_TIMEOUT);
 					if (nfds == -1) {
 						cerr << "Failure in epoll_wait() in acceptor\n";
 						F_acc_fail = true;
@@ -257,7 +270,7 @@ class IODevice {
 						while (true) {
 							struct sockaddr_in client_addr;
 							socklen_t client_size = sizeof(client_addr);
-							int client_sock = accept(listen_sock,
+							int client_sock = accept(IODev.listen_sock,
 									(sockaddr*)&client_addr, &client_size);
 							if (client_sock == -1) {
 								if ((errno == EAGAIN || errno == EWOULDBLOCK))
@@ -277,7 +290,7 @@ class IODevice {
 							fcntl(client_sock, F_SETFL, flags);
 							event.events = EPOLLIN | EPOLLET;
 							event.data.fd = client_sock;
-							if (epoll_ctl(han_epoll_fd, EPOLL_CTL_ADD, client_sock,
+							if (epoll_ctl(IODev.han_epoll_fd, EPOLL_CTL_ADD, client_sock,
 										&event) == -1) {
 								cerr << "Failure in epoll_ctl to add fd\n";
 								close(client_sock);
@@ -333,30 +346,32 @@ class IODevice {
 		}; // struct acceptor 
 
 
+
 		// Handlers should NOT invoke a master fail. That is up to the
 		// acceptor to do so.
+
 		// struct handler
 		struct handler {
 
-			void handle_conns() {
+			void handle_conns(IODevice& IODev) {
 				struct epoll_event events[MAXEVENTS];
 				// main event loop	
 				while(true) {
-					if (F_han_fail == true || F_master_fail == true || F_stop
-							== true) 
+					cout << "Handler loop executing" << endl;
+					if (F_han_fail == true || IODev.F_master_fail == true ||
+							IODev.F_stop == true) 
 						break;
-					int nfds = epoll_wait(han_epoll_fd, events, MAXEVENTS, HANDLE_TIMEOUT);
+					int nfds = epoll_wait(IODev.han_epoll_fd, events, MAXEVENTS, HANDLE_TIMEOUT);
 					if(nfds == -1) {
 						cerr << "Failure in epoll_wait() in handler thread\n";
 						F_han_fail = true;
 						continue;
 					}
 					for(int i = 0; i < nfds; i++) {
-						if((events[i].events & EPOLLER || (events[i].events &
+						if((events[i].events & EPOLLERR) || (events[i].events &
 										EPOLLHUP)) {
-							cerr << "EPOLLER or EPOLLERHUP exception in
-								handler\n";
-							if(epoll_ctl(epoll_fd, EPOLL_CTL_DEL,
+							cerr << "EPOLLERR or EPOLLERHUP exception in handler\n";
+							if(epoll_ctl(IODev.han_epoll_fd, EPOLL_CTL_DEL,
 										events[i].data.fd, NULL) == -1) {
 								cerr << "Could not delete client socket from epoll\n";
 								F_han_fail = true;
@@ -380,11 +395,13 @@ class IODevice {
 						}
 						cout << bytes_rec << " bytes received" << endl;
 						// handle_accept() 
-						(*handle)(std::string(buff));
+						(*IODev.handle)(std::string(buff));
 						close_fd = true;
-						//TODO: still need to determine if this is needed
+						//TODO: still need to determine if this is needed..
+						//		will absolutely need it if we implement an
+						//		infinite loop when reading
 						if(close_fd) {
-							if(epoll_ctl(han_epoll_fd, EPOLL_CTL_DEL,
+							if(epoll_ctl(IODev.han_epoll_fd, EPOLL_CTL_DEL,
 										events[i].data.fd, NULL) == -1) {
 								cerr << "Could not delete client socket from epoll\n";
 								F_han_fail = true;
@@ -401,17 +418,15 @@ class IODevice {
 
 		}; // struct handler
 
+	
 
-
-		// TODO: FIGURE THIS SH*T OUT
 		struct handler create_handler() {
 			struct handler _handler;
 			return _handler; 	
 		}
 
 
-		// TODO: Find the size of each of these private members and order
-		// accordingly
+
 		// Private member variables
 		void (*handle)(std::string request);
 		std::vector<handler> handler_vec;
@@ -425,10 +440,9 @@ class IODevice {
 		bool F_stop = false;
 		bool F_master_fail = false;
 		bool F_reset_callable = false;
-		bool F_listening = false;
-		
+		bool F_listening = false;	
 
-}; // class IODevice
+	}; // class IODevice
 } // namespace ScrybeIO
 
 #endif
