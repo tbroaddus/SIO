@@ -32,7 +32,7 @@ using std::cerr;
 
 //					MACROS
 // --------------------------------------------
-#define THREADCOUNT 4
+#define THREADCOUNT 2 
 #define BUFFERSIZE 4096
 #define ACCEPT_FAIL_LIMIT 5
 #define ACCEPT_LOOP_RESET 10
@@ -40,15 +40,15 @@ using std::cerr;
 #define ADD_LOOP_RESET 10
 #define MAXEVENTS 10
 #define MAXLISTEN 200
-#define ACCEPT_TIMEOUT 100	//	in milliseconds
-#define HANDLE_TIMEOUT 100	//	in milliseconds
+#define ACCEPT_TIMEOUT 5000	//	in milliseconds
+#define HANDLE_TIMEOUT 5000	//	in milliseconds
 // --------------------------------------------
 
 
 namespace ScrybeIO {
 
 
-//IODevice type
+// IODevice type
 class IODevice {
 
 
@@ -77,7 +77,7 @@ class IODevice {
 				@param NULL
 				@return -1:failure, 1:success, 0:running
 		**/
-		int listen() {
+		const int set_listen() {
 			if (F_running == true) {
 				cout << "IO device already listening and running" << endl;
 				return 0;
@@ -93,7 +93,7 @@ class IODevice {
 			listen_addr.sin_port = htons(port);
 			inet_pton(AF_INET, INADDR_ANY, &listen_addr.sin_addr);
 			if (bind(listen_sock, (sockaddr*)&listen_addr, sizeof(listen_addr))
-					== -1 {
+					== -1) {
 					cerr << "Failure to bind listening sock\n";
 					close(listen_sock);
 					return -1;
@@ -125,6 +125,7 @@ class IODevice {
 			if (acc_epoll_fd == -1 || han_epoll_fd == -1) {
 				cerr << "Failure in epoll_create1(0)\n";
 				close(listen_sock);
+				F_listening = false;
 				F_running = false;
 				return -1;
 			}
@@ -136,6 +137,7 @@ class IODevice {
 				{
 					cerr << "Failed to call epoll_ctl() in start()\n";
 					close(listen_sock);
+					F_listening = false;
 					F_running = false;
 					return -1;
 			}
@@ -175,18 +177,19 @@ class IODevice {
 
 
 		// TODO: Any potential errors to detect?
-		// TODO: Check if a thread failed, return -1 if so.
+		// TODO: Check if a master fail, return -1 if so.
 		// stop()
 		const int stop() {
 			if(F_running != true)
-				return -1;
+				return 0;
 			F_stop = true;	
-			for(std::thread t : thread_vec) {
+			for(std::thread& t : thread_vec) {
 				t.join();
 			}
-			close(listen_sock);
 			F_running = false;
 			F_reset_callable = true;
+			if(F_master_fail == true)
+				return -1;
 			return 1;
 		} // stop()
 
@@ -212,30 +215,31 @@ class IODevice {
 	//-------------------------------------------------------------------------------------
 	private:
 
-		/*
-		   FOR THE LOVE OF NEPTUNE, DO NOT CLOSE THE LISTEN_SOCK IN A THREAD...
-		*/
-		// TODO: MAKE THIS
 		// struct acceptor 
 		struct acceptor {
 
 			void accept_conns() {
-				struct epoll_event events[1]; // One because we are only wanting
+				struct epoll_event event, events[1]; // One because we are only wanting
 				                              // to observe the listening
 											  // socket.
 				// Main event loop
 				while(true) {
-					if (F_master_fail == true || F_stop == true)
-						break;
-					if (acc_fail == true) {
+					if (F_master_fail == true || F_stop == true) {
+						close(listen_sock);
+						F_listening = false;
+						break; 
+					}
+					if (F_acc_fail == true) {
 						F_master_fail = true;
+						close(listen_sock);
+						F_listening = false;
 						break;
 					}
 					// Checking to see if handler threads are still
 					// functioning.
 					int han_fail_count = 0;
-					for (handler _handler : handler_vec) {
-						if (_handler.F_han_fail = true)
+					for (handler& _handler : handler_vec) {
+						if (_handler.F_han_fail == true)
 							han_fail_count++;
 					}
 					if (han_fail_count == THREADCOUNT - 1) {
@@ -246,6 +250,7 @@ class IODevice {
 					if (nfds == -1) {
 						cerr << "Failure in epoll_wait() in acceptor\n";
 						F_acc_fail = true;
+						continue;
 					}
 					if (nfds > 0) {
 						// Accept loop
@@ -283,13 +288,13 @@ class IODevice {
 								}
 								break;
 							}
-							s_accept_loop++;
-							s_add_loop++;
-							if(s_accept_loop == ACCEPT_LOOP_RESET) {
+							n_accept_loop++;
+							n_add_loop++;
+							if(n_accept_loop == ACCEPT_LOOP_RESET) {
 								n_accept_fail = 0;
 								n_accept_loop = 0;
 							}
-							if (s_add_loop == ADD_LOOP_RESET) {
+							if (n_add_loop == ADD_LOOP_RESET) {
 								n_add_fail = 0;
 								n_add_loop = 0;
 							}
@@ -325,11 +330,9 @@ class IODevice {
 			int n_add_loop = 0;
 			bool F_acc_fail = false;
 
-		} // struct acceptor 
+		}; // struct acceptor 
 
 
-
-		// TODO: MAKE THIS
 		// Handlers should NOT invoke a master fail. That is up to the
 		// acceptor to do so.
 		// struct handler
@@ -342,7 +345,7 @@ class IODevice {
 					if (F_han_fail == true || F_master_fail == true || F_stop
 							== true) 
 						break;
-					int nfds = epoll_wait(han_epoll_fd, events, 1, HANDLE_TIMEOUT);
+					int nfds = epoll_wait(han_epoll_fd, events, MAXEVENTS, HANDLE_TIMEOUT);
 					if(nfds == -1) {
 						cerr << "Failure in epoll_wait() in handler thread\n";
 						F_han_fail = true;
@@ -355,8 +358,7 @@ class IODevice {
 								handler\n";
 							if(epoll_ctl(epoll_fd, EPOLL_CTL_DEL,
 										events[i].data.fd, NULL) == -1) {
-								cerr << "Could not delete client socket from
-									epoll\n";
+								cerr << "Could not delete client socket from epoll\n";
 								F_han_fail = true;
 								break;
 							}
@@ -384,8 +386,7 @@ class IODevice {
 						if(close_fd) {
 							if(epoll_ctl(han_epoll_fd, EPOLL_CTL_DEL,
 										events[i].data.fd, NULL) == -1) {
-								cerr << "Could not delete client socket from
-									epoll\n";
+								cerr << "Could not delete client socket from epoll\n";
 								F_han_fail = true;
 							}
 						}
@@ -394,8 +395,11 @@ class IODevice {
 				if (F_han_fail == true) 
 					cout << "Thread failed!" << endl;
 			}
+
+			// Struct handler public member variable
 			bool F_han_fail = false;
-		} // struct handler
+
+		}; // struct handler
 
 
 
@@ -406,22 +410,13 @@ class IODevice {
 		}
 
 
-
-		/*
-		// TODO: FIGURE THIS SH*T OUT
-		const std::thread& create_thread(struct handler& handler_ref) {
-			return new std::thread(handler_ref.handle_conns);
-		*/
-
 		// TODO: Find the size of each of these private members and order
 		// accordingly
-
 		// Private member variables
 		void (*handle)(std::string request);
 		std::vector<handler> handler_vec;
 		std::vector<std::thread> thread_vec;
-		struct acceptor acceptor_L1;
-		std::mutex mu;
+		acceptor acceptor_L1;
 		int listen_sock;
 		int acc_epoll_fd;
 		int han_epoll_fd;
