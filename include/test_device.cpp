@@ -7,7 +7,7 @@
 #include <thread>
 #include <unistd.h>
 #include <stdlib.h>
-
+#include <chrono>
 #include "IO_Device.h"
 
 using std::cout;
@@ -77,6 +77,8 @@ int main() {
 		}
 	}
 
+	// reset() can be called while the device is not running. This call resets
+	// all variables to their default state. Intended to be used after a crash.
 	if(IODev.reset() == -1) {
 		cerr << "Could not reset" << endl;
 	}
@@ -116,5 +118,126 @@ int main() {
 		}
 	}
 
+	// resume() can be called after stop() has been called to continue handling
+	// requests and accepting new client connections. 	
+	if (IODev.resume() == -1) {
+		cerr << "Failure in IODev.resume()" << endl;
+		return 0;
+	}
+	cout << "Resume() succesful!" << endl;
+
+	// --- Work ----
+	// ...
+	// ...
+	// ...
+
+	// "Guantlet" of inappropriate IODevice calls by the user 
+	std::this_thread::sleep_for(std::chrono::seconds(5));
+
+	if (IODev.reset() == -1)
+		cerr << "Cannot call reset\n";
+
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+
+	if (IODev.start() == -1)
+		cerr << "Cannot call start\n";
+
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+
+	if (IODev.set_listen() == -1)
+		cerr << "Cannot call listen\n";
+
+
+	while(true) {
+		char input = getchar();
+		if (input == 'q') {
+			int stop_res = IODev.stop();
+			if (stop_res == -1)
+			   cerr << "master fail\n";	
+			break;
+		}
+	}
+
+
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+
+	// Another resume() call followed by another "Guantlet"
+	if(IODev.resume() == -1) {
+		cerr << "Failure in second call to IODev.resume()" << endl;
+		return 0;
+	}
+	cout << "Success in second Resume() call!" << endl;
+
+	std::this_thread::sleep_for(std::chrono::seconds(5));
+
+	if (IODev.reset() == -1)
+		cerr << "Cannot call reset\n";
+
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+
+	if (IODev.start() == -1)
+		cerr << "Cannot call start\n";
+
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+
+	if (IODev.set_listen() == -1)
+		cerr << "Cannot call listen\n";
+
+	std::this_thread::sleep_for(std::chrono::seconds(3));
+
+	if(IODev.master_fail() == 1) {
+		cout << "Master fail in threads" << endl;
+		cout << "Stopping server" << endl;
+		IODev.stop();
+		return 0;
+	}
+
+	cout << "No master fail present!" << endl;
+
+	while(true) {
+		char input = getchar();
+		if (input == 'q') {
+			int stop_res = IODev.stop();
+			if (stop_res == -1)
+			   cerr << "master fail\n";	
+			break;
+		}
+	}
+
+	if(IODev.resume() == -1) {
+		cerr << "Failure in third call to IODev.resume()\n";
+		return 0;
+	}
+
+	std::this_thread::sleep_for(std::chrono::seconds(2));
+
+	// --- WORK ---	
+	// ...
+	// ...
+	// ...
+
+
+	// Setting F_master_fail to false to simulate a master fail occuring
+	IODev.set_master_fail();
+
+	std::this_thread::sleep_for(std::chrono::seconds(2));
+	
+	// Program will end here
+	if(IODev.master_fail() == 1) {
+		cout << "Master fail in threads" << endl;
+		cout << "Stopping server" << endl;
+		IODev.stop();
+		return 0;
+	}
+
+	while(true) {
+		char input = getchar();
+		if (input == 'q') {
+			int stop_res = IODev.stop();
+			if (stop_res == -1)
+			   cerr << "master fail\n";	
+			break;
+		}
+	}
 	return 0;
 }

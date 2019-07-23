@@ -107,6 +107,7 @@ class IODevice {
 					sizeof(set_sock)) == -1) {
 				cerr << "Failure in setsockopt() in IO_Device" << endl;
 				close(listen_sock);
+				F_reset_callable = true;
 				return -1;
 			}
 
@@ -118,10 +119,13 @@ class IODevice {
 					== -1) {
 					cerr << "Failure to bind listening sock\n";
 					close(listen_sock);
+					F_reset_callable = true;
 					return -1;
 			}
 			if (listen(listen_sock, MAXLISTEN) == -1) {
 				cerr << "Failed to listen\n";
+				F_reset_callable = true;
+				close(listen_sock);
 				return -1;
 			}
 
@@ -151,6 +155,7 @@ class IODevice {
 				close(listen_sock);
 				F_listening = false;
 				F_running = false;
+				F_reset_callable = true;
 				return -1;
 			}
 			
@@ -163,6 +168,7 @@ class IODevice {
 					close(listen_sock);
 					F_listening = false;
 					F_running = false;
+					F_reset_callable = true;
 					return -1;
 			}
 
@@ -183,20 +189,6 @@ class IODevice {
 
 
 
-		// TODO: Must check if running (bool running)
-		// TODO: Must check master fail
-		// TODO: Check individual threads for status and return 0 for all
-		// running and a postive int for the number that failed.
-		// thread_check()
-		const int thread_check() const {
-			int fail_count;
-
-			return fail_count;
-
-		} // thread_check();
-
-
-	
 		// stop()
 		const int stop() {
 			if(F_running != true)
@@ -205,6 +197,7 @@ class IODevice {
 			for(std::thread& t : thread_vec) {
 				t.join();
 			}
+			thread_vec.clear();
 			F_running = false;
 			F_reset_callable = true;
 			if(F_master_fail == true)
@@ -215,13 +208,55 @@ class IODevice {
 
 
 
+		// resume()
+		const int resume() {
+			if (F_master_fail == true)
+				return -1;
+			if (F_stop != true) 
+				return -1;
+
+			if(this->set_listen() == -1) {
+				cerr << "set_listen() failed\n"; 
+				return -1;
+			}
+
+			F_reset_callable = false;
+			F_stop = false;
+			F_listening = true;
+			F_running = true;
+
+			struct epoll_event event;
+			event.events = EPOLLIN | EPOLLET;
+			event.data.fd = listen_sock;
+			if (epoll_ctl(acc_epoll_fd, EPOLL_CTL_ADD, listen_sock, &event) == -1)
+				{
+					cerr << "Failed to call epoll_ctl() in start()\n";
+					close(listen_sock);
+					F_listening = false;
+					F_running = false;
+					F_reset_callable = true;
+					return -1;
+			}
+			std::thread L1(&acceptor::accept_conns, &acceptor_L1,
+					std::ref(*this));
+			thread_vec.push_back(std::move(L1));
+			for(std::shared_ptr<handler> handler_ptr : handler_vec) {
+				thread_vec.push_back(std::move(std::thread(&handler::handle_conns,
+								handler_ptr, std::ref(*this))));
+			}
+
+			return 1;
+
+		} // resume() 
+
+
+
 		//TODO: Test reset functionality
 		// reset()
 		const int reset() {
 			if (F_reset_callable == false)
 				return -1;
 			handler_vec.clear();
-			thread_vec.clear();
 			struct acceptor _acceptor;
 			acceptor_L1 = _acceptor;
 			F_listening = false;
@@ -232,6 +267,28 @@ class IODevice {
 			return 1;
 		} // reset()
 
+
+
+		// Intended to be used so that the server can keep track of
+		// the threads while doing other work.
+		// Returns 1 if there is a master fail, -1 if there is not a master
+		// fail.
+		// master_fail() 
+		// TODO: Should stop() be called from here?
+		const int master_fail() const {
+			if (F_master_fail != true) 
+				return -1;
+			return 1;
+		} // master_fail()
+
+		
+
+		// IMPORTANT! For testing purposes only, will not make it in final
+		// release.
+		// set_master_fail();
+		void set_master_fail() {
+			F_master_fail = true;
+		}
 
 
 	//						Private
