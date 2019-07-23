@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <chrono>
 
 #include <unistd.h>
 #include <string.h>
@@ -24,6 +25,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <errno.h>
+#include <sys/types.h>
 
 using std::cout;
 using std::endl;
@@ -64,11 +66,13 @@ class IODevice {
 				handle = _handle;
 				port = _port;
 		} // IODevice() constructor
-	
+
+
 
 		// TODO: needed?
 		~IODevice() {}
 
+		
 		
 		// Acceptor and handler now have access to IODevices private members
 		friend struct acceptor;
@@ -89,12 +93,23 @@ class IODevice {
 				cout << "IO device already listening and running" << endl;
 				return 0;
 			}
+
 			F_reset_callable = false;
 			listen_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 			if (listen_sock == -1) {
 				cerr << "Cannot create listening socket\n";
 				return -1;
 			}
+
+			int set_sock = 1;
+			// Allows bind() without error after reset() call		
+			if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEPORT, &set_sock,
+					sizeof(set_sock)) == -1) {
+				cerr << "Failure in setsockopt() in IO_Device" << endl;
+				close(listen_sock);
+				return -1;
+			}
+
 			sockaddr_in listen_addr;
 			listen_addr.sin_family = AF_INET;
 			listen_addr.sin_port = htons(port);
@@ -109,9 +124,10 @@ class IODevice {
 				cerr << "Failed to listen\n";
 				return -1;
 			}
+
 			F_listening = true;
 			return 1;
-		} // listen()
+		} // set_listen()
 
 
 
@@ -151,17 +167,17 @@ class IODevice {
 			}
 
 			for(int i = 0; i < THREADCOUNT-1; i++) {
-				handler_vec.push_back(create_handler());
+				handler_vec.push_back(std::make_shared<handler>());
 			}
 
 			std::thread L1(&acceptor::accept_conns, &acceptor_L1, std::ref(*this));
 			thread_vec.push_back(std::move(L1));
 
-			for(handler& _handler : handler_vec) {
-				thread_vec.push_back(std::move(std::thread(&handler::handle_conns,
-								&_handler, std::ref(*this))));
-
+			for(std::shared_ptr<handler> handler_ptr : handler_vec) {
+					thread_vec.push_back(std::move(std::thread(&handler::handle_conns,
+									handler_ptr, std::ref(*this)))); 
 			}
+			
 			return 1;
 		} // start()
 
@@ -179,16 +195,8 @@ class IODevice {
 
 		} // thread_check();
 
-		
 
-		//TODO: Maybe?
-		//failure_report()
-		std::string failure_report() const {
-
-		} //failure_report()
-
-
-		
+	
 		// stop()
 		const int stop() {
 			if(F_running != true)
@@ -201,8 +209,10 @@ class IODevice {
 			F_reset_callable = true;
 			if(F_master_fail == true)
 				return -1;
+		
 			return 1;
 		} // stop()
+
 
 
 		//TODO: Test reset functionality
@@ -210,14 +220,15 @@ class IODevice {
 		const int reset() {
 			if (F_reset_callable == false)
 				return -1;
-			handler_vec.empty();
-			thread_vec.empty();
+			handler_vec.clear();
+			thread_vec.clear();
 			struct acceptor _acceptor;
 			acceptor_L1 = _acceptor;
 			F_listening = false;
 			F_running = false;
 			F_stop = false;
 			F_master_fail = false;
+			
 			return 1;
 		} // reset()
 
@@ -227,6 +238,8 @@ class IODevice {
 	//-------------------------------------------------------------------------------------
 
 	private:
+
+
 		// struct acceptor 
 		struct acceptor {
 
@@ -236,7 +249,7 @@ class IODevice {
 												  // socket.
 				// Main event loop
 				while(true) {
-					cout << "Acceptor loop executing" << endl;
+					// cout << "Acceptor loop executing" << endl;
 					if (IODev.F_master_fail == true || IODev.F_stop == true) {
 						close(IODev.listen_sock);
 						IODev.F_listening = false;
@@ -251,8 +264,8 @@ class IODevice {
 					// Checking to see if handler threads are still
 					// functioning.
 					int han_fail_count = 0;
-					for (handler& _handler : IODev.handler_vec) {
-						if (_handler.F_han_fail == true)
+					for (std::shared_ptr<handler> handler_ptr : IODev.handler_vec) {
+						if (handler_ptr->F_han_fail == true)
 							han_fail_count++;
 					}
 					if (han_fail_count == THREADCOUNT - 1) {
@@ -311,8 +324,9 @@ class IODevice {
 								n_add_fail = 0;
 								n_add_loop = 0;
 							}
+								
+							// ----- Testing purposes ----------------------
 
-							// Testing purposes 
 							char host[NI_MAXHOST];
 							char svc[NI_MAXSERV];
 							memset(host, 0, NI_MAXHOST);
@@ -331,12 +345,16 @@ class IODevice {
 								cout << host << " connected on " <<
 									ntohs(client_addr.sin_port) << endl;
 							}
+
+							// ----------------------------------------------
+
+							
 						} // while() 
 					} // if () 
 				} // while()
 			} // accept_conns();
 
-			//struct acceptor public member variables
+			//	struct acceptor public member variables
 			int n_accept_fail = 0;
 			int n_accept_loop = 0;
 			int n_add_fail = 0;
@@ -357,7 +375,7 @@ class IODevice {
 				struct epoll_event events[MAXEVENTS];
 				// main event loop	
 				while(true) {
-					cout << "Handler loop executing" << endl;
+					// cout << "Handler loop executing" << endl;
 					if (F_han_fail == true || IODev.F_master_fail == true ||
 							IODev.F_stop == true) 
 						break;
@@ -378,28 +396,34 @@ class IODevice {
 								break;
 							}
 						}
+						bool conn_closed = false;	
+						bool close_fd = false;
 						char buff[BUFFERSIZE];
 						memset(buff, 0, BUFFERSIZE);
-						bool close_fd = false;
-						int bytes_rec = recv(events[i].data.fd, buff, BUFFERSIZE,
-								0);
-						if(bytes_rec < 0) {
-							if (errno!= EWOULDBLOCK && errno != EAGAIN) {
-								cerr << "Could not receive message with\n";
-								close_fd = true;
+
+						while (true) {
+							int bytes_rec = recv(events[i].data.fd, buff, BUFFERSIZE,
+									0);
+							if(bytes_rec < 0) { 
+								if (errno!= EWOULDBLOCK && errno != EAGAIN) {
+									cerr << "Could not receive message with\n";
+									close_fd = true;
+								}
+								// cout << "No more data to recv" << endl;
+								break;
 							}
+							else if (bytes_rec == 0) {
+								cout << "Connection closed" << endl;
+								close_fd = true;
+								break;
+							}
+							if(bytes_rec > 0) {
+								// cout << bytes_rec << " bytes received" << endl;
+								// handle_accept() 
+								(*IODev.handle)(std::string(buff));
+								continue;
+								}
 						}
-						if (bytes_rec == 0) {
-							cout << "Connection closed" << endl;
-							close_fd = true;
-						}
-						cout << bytes_rec << " bytes received" << endl;
-						// handle_accept() 
-						(*IODev.handle)(std::string(buff));
-						close_fd = true;
-						//TODO: still need to determine if this is needed..
-						//		will absolutely need it if we implement an
-						//		infinite loop when reading
 						if(close_fd) {
 							if(epoll_ctl(IODev.han_epoll_fd, EPOLL_CTL_DEL,
 										events[i].data.fd, NULL) == -1) {
@@ -418,18 +442,10 @@ class IODevice {
 
 		}; // struct handler
 
-	
-
-		struct handler create_handler() {
-			struct handler _handler;
-			return _handler; 	
-		}
-
-
 
 		// Private member variables
 		void (*handle)(std::string request);
-		std::vector<handler> handler_vec;
+		std::vector<std::shared_ptr<handler>> handler_vec;
 		std::vector<std::thread> thread_vec;
 		acceptor acceptor_L1;
 		int listen_sock;
@@ -440,7 +456,7 @@ class IODevice {
 		bool F_stop = false;
 		bool F_master_fail = false;
 		bool F_reset_callable = false;
-		bool F_listening = false;	
+		bool F_listening = false;
 
 	}; // class IODevice
 } // namespace ScrybeIO
