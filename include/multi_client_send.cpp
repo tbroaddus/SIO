@@ -60,22 +60,29 @@ int main() {
 	if(con_Result == -1) {
 	   return 1;
 	}
-	string userInput = "Hello hello hello hello hi ";
+
 
 	// Do-While loop
 		//Enter lines of text
+		char buf[4096];
 		
 		//Send to server
-		for(int i = 0; i < 100; i++) {
+		for(int i = 0; i < 4; i++) {
+
+		string userInput = "Hello ";
+		userInput += to_string(i);
 		int sendRes = send(sock, userInput.c_str(), userInput.size() + 1, 0);
 		if (sendRes == -1) {
 			cout << "Could not send to server! Whoops! \r\n";
 		}
 		sleep_for(seconds(1));
+		memset(buf, 0, 4096);
+		int bytesrec = recv(sock, buf, 4096, 0);
+		cout << "SERVER> " << string(buf, bytesrec) << endl;
 		}
+		
 	// Close the socket
-		while(true){};
-
+	close(sock);
 	return 0;
 }
 

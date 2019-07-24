@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <cstring>
 #include <unistd.h>
 #include <stdlib.h>
 #include <chrono>
@@ -16,9 +17,17 @@ using std::cerr;
 
 
 // Represents handle_accept function from Scrybe in Server.cpp
-void handle_accept(std::string request) {
-	cout << "From Handle_accept() in test_device.cpp!" << endl;
-	cout << request << endl;
+void handle_accept(std::string request, int client_sock) {
+	// cout << "From Handle_accept() in test_device.cpp!" << endl;
+	// cout << request << endl;
+	int sendRes = send(client_sock, request.c_str(), request.size() + 1, 0); 	
+	if (sendRes == -1) {
+		cout << "Could not send to client!" << endl;
+	}
+	
+/*	if (sendRes)
+		cout << "Sent to " << client_sock << endl;
+*/	
 }
 
 int main() {
@@ -113,7 +122,7 @@ int main() {
 	while(true) {
 		char input = getchar();
 		if (input == 'q') {
-			IODev.stop();
+			IODev.pause();
 			break;
 		}
 	}
@@ -151,8 +160,8 @@ int main() {
 	while(true) {
 		char input = getchar();
 		if (input == 'q') {
-			int stop_res = IODev.stop();
-			if (stop_res == -1)
+			int pause_res = IODev.pause();
+			if (pause_res == -1)
 			   cerr << "master fail\n";	
 			break;
 		}
@@ -185,7 +194,7 @@ int main() {
 
 	std::this_thread::sleep_for(std::chrono::seconds(3));
 
-	if(IODev.master_fail() == 1) {
+	if(IODev.check_master_fail()) {
 		cout << "Master fail in threads" << endl;
 		cout << "Stopping server" << endl;
 		IODev.stop();
@@ -197,9 +206,9 @@ int main() {
 	while(true) {
 		char input = getchar();
 		if (input == 'q') {
-			int stop_res = IODev.stop();
-			if (stop_res == -1)
-			   cerr << "master fail\n";	
+			int pause_res = IODev.pause();
+			if (pause_res == -2)
+			   cerr << "master fail\n";
 			break;
 		}
 	}
@@ -223,7 +232,7 @@ int main() {
 	std::this_thread::sleep_for(std::chrono::seconds(2));
 	
 	// Program will end here
-	if(IODev.master_fail() == 1) {
+	if(IODev.check_master_fail()) {
 		cout << "Master fail in threads" << endl;
 		cout << "Stopping server" << endl;
 		IODev.stop();
