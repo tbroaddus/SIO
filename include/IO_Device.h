@@ -1,7 +1,8 @@
 //	File:		IO_Device.h
 //	Author:		Tanner Broaddus
 /*
-	Notes:
+NOTES:
+
 
 */
 
@@ -15,7 +16,6 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <chrono>
 
 #include <unistd.h>
 #include <string.h>
@@ -61,44 +61,49 @@ class IODevice {
 	public:
 
 
-
+		// Constructor
 		explicit IODevice(void(*_handle)(std::string request, int client_sock), int _port)
-			{
-				handle = _handle;
-				port = _port;
-		} // IODevice() constructor
+		{
+			handle = _handle;
+			port = _port;
+		} 
 
 
-
-
-		// TODO: needed?
-		~IODevice() {}
+		// Destructor
+		~IODevice() {
+			close(listen_sock);
+		}
 
 		
 		
-
-		// Acceptor and handler now have access to IODevices private members
+		// Acceptor and handler now have access to IODevice's private members
 		friend struct acceptor;
 		friend struct handler;
 
+		
 
 
+
+		// --- User Functions ---
+		// - set_listen()
+		// - start()
+		// - stop()
+		// - pause()
+		// - resume()
+		// - reset()
+		// - check_master_fail()
 
 
 		// set_listen()
-		/**
-			info:
-				Creates, binds, and starts listening socket. Should only be
-				called once.
-				@param NULL
-				@return -1:failure, 1:success, 0:running
-		**/
 		const int set_listen() {
 			if (F_running == true) {
-				cout << "IO device already listening and running" << endl;
-				return 0;
+				cerr << "IO device already listening and running\n";
+				return -1;
 			}
-
+			if (F_stop == true || F_pause == true) {
+				cerr << "Must call reset() before set_listen()\n";
+				return -1;
+			} 
 			F_reset_callable = false;
 			listen_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 			if (listen_sock == -1) {
@@ -110,7 +115,7 @@ class IODevice {
 			// Allows bind() without error after reset() call		
 			if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEPORT, &set_sock,
 					sizeof(set_sock)) == -1) {
-				cerr << "Failure in setsockopt() in IO_Device" << endl;
+				cerr << "Failure in setsockopt() in IO_Device\n";
 				close(listen_sock);
 				F_reset_callable = true;
 				return -1;
@@ -135,14 +140,13 @@ class IODevice {
 			}
 
 			F_listening = true;
-			return 1;
+			return 0;
 		} // set_listen()
 
 
 
 
 
-		// TODO: Keep track of running
 		// start()
 		const int start() {
 			if (F_listening == false) {
@@ -151,7 +155,7 @@ class IODevice {
 			}
 			if (F_running == true) {
 				cerr << "IO Device already running\n";
-				return 0;
+				return -1;
 			}
 			if (F_pause == true) {
 				cerr << "Must call reset(), set_listen() before start()\n";
@@ -195,7 +199,7 @@ class IODevice {
 									handler_ptr, std::ref(*this)))); 
 			}
 			
-			return 1;
+			return 0;
 		} // start()
 
 
@@ -204,8 +208,10 @@ class IODevice {
 
 		// stop()
 		const int stop() {
-			if (F_running != true)
+			if (F_running != true) {
+				cerr << "Stop() called while not running\n";
 				return -1;
+			}
 			F_stop = true;	
 			for(std::thread& t : thread_vec) {
 				t.join();
@@ -213,10 +219,13 @@ class IODevice {
 			thread_vec.clear();
 			F_running = false;
 			F_reset_callable = true;
-			if (F_master_fail == true)
-				return -2;
+			if (F_master_fail == true) {
+				return -1;
+				cerr << "Master fail detected in stop()\n";
+
+			}
 		
-			return 1;
+			return 0;
 		} // stop()
 
 
@@ -225,8 +234,10 @@ class IODevice {
 
 		// pause()
 		const int pause() {
-			if (F_running != true) 
+			if (F_running != true) {
+				cerr << "Pause() called while not running\n";	
 				return -1;
+			}
 			F_pause = true;
 			F_running = false;
 			for(std::thread& t : thread_vec) {
@@ -235,11 +246,11 @@ class IODevice {
 			thread_vec.clear();
 			F_reset_callable = true;
 			if (F_master_fail == true) {
-				cout << "Master fail detected in pause()" << endl;
-				return -2;
+				cerr << "Master fail detected in pause()\n";
+				return -1;
 			}
 
-			return 1;
+			return 0;
 		} // pause() 
 
 
@@ -248,10 +259,10 @@ class IODevice {
 
 		// resume()
 		const int resume() {
-			if (F_master_fail == true)
-				return -2;
-			if (F_pause != true) 
+			if (F_pause != true)  {
+				cerr << "Device was not paused when resume() was called\n";
 				return -1;
+			}
 		
 			F_reset_callable = false;
 			F_pause = false;
@@ -266,18 +277,19 @@ class IODevice {
 
 			F_running = true;
 
-			return 1;
+			return 0;
 		} // resume() 
 
 
 
 
 
-		//TODO: Test reset functionality
 		// reset()
 		const int reset(int _port = -1) {
-			if (F_reset_callable == false)
+			if (F_reset_callable == false) {
+				cerr << "reset() not callable\n";
 				return -1;
+			}
 			if (_port != -1)
 				port = _port;
 			handler_vec.clear();
@@ -289,16 +301,12 @@ class IODevice {
 			F_master_fail = false;
 			F_pause = false;
 			
-			return 1;
+			return 0;
 		} // reset()
 
 
 
 
-		// Intended to be used so that the server can keep track of
-		// the threads while doing other work.
-		// Returns 1 if there is a master fail, -1 if there is not a master
-		// fail.
 		// check_master_fail() 
 		const bool check_master_fail() const {
 			return F_master_fail;
@@ -313,6 +321,7 @@ class IODevice {
 		void set_master_fail() {
 			F_master_fail = true;
 		}
+
 
 
 
@@ -366,6 +375,14 @@ class IODevice {
 					if (nfds > 0) {
 						// Accept loop
 						while (true) {
+							if (n_accept_loop == ACCEPT_LOOP_RESET) {
+								n_accept_fail = 0;
+								n_accept_loop = 0;
+							}
+							if (n_add_loop == ADD_LOOP_RESET) {
+								n_add_fail = 0;
+								n_add_loop = 0;
+							}
 							struct sockaddr_in client_addr;
 							socklen_t client_size = sizeof(client_addr);
 							int client_sock = accept(IODev.listen_sock,
@@ -374,9 +391,9 @@ class IODevice {
 								if ((errno == EAGAIN || errno == EWOULDBLOCK))
 									break; // Added all new connections 
 								else {
-									cerr << "Failed to accept\n";
+									cerr << "Failed to accept new client\n";
 									n_accept_fail++;
-									n_accept_loop = 0;
+									n_accept_loop++;
 									if (n_accept_fail == ACCEPT_FAIL_LIMIT) {
 										F_acc_fail = true;
 									}
@@ -393,7 +410,7 @@ class IODevice {
 								cerr << "Failure in epoll_ctl to add fd\n";
 								close(client_sock);
 								n_add_fail++;
-								n_add_loop = 0;
+								n_add_loop++;
 								if (n_add_fail == ADD_FAIL_LIMIT) {
 									F_acc_fail = true;
 								}
@@ -401,15 +418,7 @@ class IODevice {
 							}
 							n_accept_loop++;
 							n_add_loop++;
-							if (n_accept_loop == ACCEPT_LOOP_RESET) {
-								n_accept_fail = 0;
-								n_accept_loop = 0;
-							}
-							if (n_add_loop == ADD_LOOP_RESET) {
-								n_add_fail = 0;
-								n_add_loop = 0;
-							}
-								
+															
 							// ----- Testing purposes ----------------------
 
 							char host[NI_MAXHOST];
@@ -473,20 +482,6 @@ class IODevice {
 						continue;
 					}
 					for(int i = 0; i < nfds; i++) {
-
-						/*
-						if ((events[i].events & EPOLLERR) || (events[i].events &
-										EPOLLHUP)) {
-							cerr << "EPOLLERR or EPOLLERHUP exception in handler\n";
-							cout << errno << endl;
-							if (epoll_ctl(IODev.han_epoll_fd, EPOLL_CTL_DEL,
-										events[i].data.fd, NULL) == -1) {
-								cerr << "Could not delete client socket from epoll\n";
-								F_han_fail = true;
-								break;
-							}
-						}*/
-
 						if ((events[i].events & EPOLLERR) || (events[i].events &
 										EPOLLHUP)) {
 							cerr << "EPOLLERR in handler\n";
@@ -499,7 +494,6 @@ class IODevice {
 							close(events[i].data.fd);
 							continue;
 						}
-						bool conn_closed = false;	
 						bool close_fd = false;
 						char buff[BUFFERSIZE];
 						memset(buff, 0, BUFFERSIZE);
@@ -509,8 +503,8 @@ class IODevice {
 									0);
 							if (bytes_rec < 0) { 
 								if (errno!= EWOULDBLOCK && errno != EAGAIN) {
-									cout << errno << endl;
-									cerr << "Could not receive message with\n";
+									// cout << errno << endl;
+									cerr << "Could not receive message\n";
 									close_fd = true;
 								}
 								// cout << "No more data to recv" << endl;
@@ -541,7 +535,7 @@ class IODevice {
 					} // for()
 				} // while()
 				if (F_han_fail == true) 
-					cout << "Thread failed!" << endl;
+					cerr << "Handler thread failed\n";
 			}
 
 			// Struct handler public member variable
