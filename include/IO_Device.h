@@ -49,6 +49,40 @@ using std::cerr;
 
 namespace ScrybeIO {
 
+struct Options {
+
+	Options(){}
+
+	Options(int _port, int _tc, int _bs, int _accept_fl, int accept_lr, int _add_fl,
+			int _add_lr, int _max_events, int _max_listen, int _at, int, _ht);
+	{
+		port = _port;
+		thread_count = _tc;
+		buffer_size = _bs;
+		accept_fail_limit = _accept_fl;
+		accept_loop_reset = _accept_lr;
+		add_fail_limit = _add_fl;
+		add_loop_reset = _add_lr;
+		max_events = _max_events;
+		max_listen = _max_listen;
+		accept_timeout = _at;
+		handle_timeout = _ht;
+	}
+
+	int port;
+	int thread_count = 2;
+	int buffer_size = 4096;
+	int accept_fail_limit = 2;
+	int accept_loop_reset = 20;
+	int add_fail_limit = 2;
+	int add_loop_reset = 20;
+	int max_events = 20;
+	int max_listen = 100;
+	int accept_timeout = 1000;
+	int handle_timeout = 1000;
+};
+
+
 
 	
 // IODevice type
@@ -62,7 +96,8 @@ class IODevice {
 
 
 		// Constructor
-		explicit IODevice(void(*_handle)(std::string request, int client_sock), int _port)
+		explicit IODevice(void(*_handle)(std::string request, int client_sock),
+				Options opt)
 		{
 			handle = _handle;
 			port = _port;
@@ -146,7 +181,6 @@ class IODevice {
 
 
 
-
 		// start()
 		const int start() {
 			if (F_listening == false) {
@@ -205,7 +239,6 @@ class IODevice {
 
 
 
-
 		// stop()
 		const int stop() {
 			if (F_running != true) {
@@ -256,7 +289,6 @@ class IODevice {
 
 
 
-
 		// resume()
 		const int resume() {
 			if (F_pause != true)  {
@@ -283,7 +315,6 @@ class IODevice {
 
 
 
-
 		// reset()
 		const int reset(int _port = -1) {
 			if (F_reset_callable == false) {
@@ -303,6 +334,21 @@ class IODevice {
 			
 			return 0;
 		} // reset()
+	
+
+
+
+		// n_running()
+		const int n_running() const {
+			if (F_master_fail == true) 
+				return 0;
+			int thread_count = 1; // Acceptor running
+			for (std::shared_ptr<handler> handler_ptr : handler_vec) {
+				if (handler_ptr->F_han_fail == false)
+					thread_count++;
+			}
+			return thread_count;
+		} // n_running()
 
 
 
@@ -311,7 +357,6 @@ class IODevice {
 		const bool check_master_fail() const {
 			return F_master_fail;
 		} // check_master_fail()
-
 
 
 
@@ -554,6 +599,16 @@ class IODevice {
 		int acc_epoll_fd;
 		int han_epoll_fd;
 		int port;
+		int thread_count;
+		int buffer_size;
+		int accept_fail_limit;
+		int accept_loop_reset;
+		int add_fail_limit;
+		int add_loop_reset;
+		int max_events;
+		int max_listen;
+		int accept_timeout;
+		int handle_timeout;
 		bool F_running = false;
 		bool F_stop = false;
 		bool F_pause = false;
