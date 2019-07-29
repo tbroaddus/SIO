@@ -32,29 +32,21 @@ using std::endl;
 using std::cerr;
 
 
-//					MACROS
-// --------------------------------------------
-#define THREADCOUNT 4 
-#define BUFFERSIZE 4096
-#define ACCEPT_FAIL_LIMIT 5
-#define ACCEPT_LOOP_RESET 10
-#define ADD_FAIL_LIMIT 5
-#define ADD_LOOP_RESET 10
-#define MAXEVENTS 10
-#define MAXLISTEN 200
-#define ACCEPT_TIMEOUT 1000	//	in milliseconds
-#define HANDLE_TIMEOUT 1000	//	in milliseconds
-// --------------------------------------------
-
-
 namespace ScrybeIO {
+namespace IODevice {
+
+
+
+
+// struct Options
+// =========================================================
 
 struct Options {
 
 	Options(){}
 
-	Options(int _port, int _tc, int _bs, int _accept_fl, int accept_lr, int _add_fl,
-			int _add_lr, int _max_events, int _max_listen, int _at, int, _ht);
+	Options(int _port, int _tc, int _bs, int _accept_fl, int _accept_lr, int _add_fl,
+			int _add_lr, int _max_events, int _max_listen, int _at, int _ht)
 	{
 		port = _port;
 		thread_count = _tc;
@@ -72,85 +64,96 @@ struct Options {
 	int port;
 	int thread_count = 2;
 	int buffer_size = 4096;
-	int accept_fail_limit = 2;
-	int accept_loop_reset = 20;
-	int add_fail_limit = 2;
-	int add_loop_reset = 20;
-	int max_events = 20;
+	int accept_fail_limit = 1;
+	int accept_loop_reset = 10;
+	int add_fail_limit = 1;
+	int add_loop_reset = 10;
+	int max_events = 50;
 	int max_listen = 100;
-	int accept_timeout = 1000;
-	int handle_timeout = 1000;
+	int accept_timeout = 1000;		// In milliseconds
+	int handle_timeout = 1000;		// In milliseconds
 };
 
 
 
-	
-// IODevice type
-class IODevice {
-	
 
-//					Public
-//-------------------------------------------------------------------------------------
+// class Device
+// =========================================================
+
+class Device {
+
+
+//	--- Public ---
 
 	public:
 
 
 		// Constructor
-		explicit IODevice(void(*_handle)(std::string request, int client_sock),
-				Options opt)
+		explicit Device(void(*_handle)(std::string request, int client_sock),
+				const struct Options& opt)
 		{
 			handle = _handle;
-			port = _port;
-		} 
+			port = opt.port;
+			thread_count = opt.thread_count;
+			buffer_size = opt.buffer_size;
+			accept_fail_limit = opt.accept_fail_limit;
+			accept_loop_reset = opt.accept_loop_reset;
+			add_fail_limit = opt.add_fail_limit;
+			add_loop_reset = opt.add_loop_reset;
+			max_events = opt.max_events;
+			max_listen = opt.max_listen;
+			accept_timeout = opt.accept_timeout;
+			handle_timeout = opt.handle_timeout;
+		}
 
 
 		// Destructor
-		~IODevice() {
+		~Device() {
 			close(listen_sock);
 		}
 
-		
-		
-		// Acceptor and handler now have access to IODevice's private members
+
+
+		// Acceptor and handler now have access to Device's private members
 		friend struct acceptor;
 		friend struct handler;
 
-		
 
 
 
-		// --- User Functions ---
+		// --- Public User Functions ---
 		// - set_listen()
 		// - start()
 		// - stop()
 		// - pause()
 		// - resume()
 		// - reset()
+		// - n_running() 
 		// - check_master_fail()
 
 
 		// set_listen()
 		const int set_listen() {
 			if (F_running == true) {
-				cerr << "IO device already listening and running\n";
+				cerr << "Device ERR in set_listen(): IO device already listening and running\n";
 				return -1;
 			}
 			if (F_stop == true || F_pause == true) {
-				cerr << "Must call reset() before set_listen()\n";
+				cerr << "Device ERR in set_listen(): Must call reset() before set_listen()\n";
 				return -1;
-			} 
+			}
 			F_reset_callable = false;
 			listen_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 			if (listen_sock == -1) {
-				cerr << "Cannot create listening socket\n";
+				cerr << "Device ERR in set_listen(): Cannot create listening socket\n";
 				return -1;
 			}
 
 			int set_sock = 1;
-			// Allows bind() without error after reset() call		
+			// Allows bind() without error after reset() call
 			if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEPORT, &set_sock,
 					sizeof(set_sock)) == -1) {
-				cerr << "Failure in setsockopt() in IO_Device\n";
+				cerr << "Device ERR in set_listen(): Failure in setsockopt() in IO_Device\n";
 				close(listen_sock);
 				F_reset_callable = true;
 				return -1;
@@ -162,13 +165,13 @@ class IODevice {
 			inet_pton(AF_INET, "0.0.0.0", &listen_addr.sin_addr);
 			if (bind(listen_sock, (sockaddr*)&listen_addr, sizeof(listen_addr))
 					== -1) {
-					cerr << "Failure to bind listening sock\n";
+					cerr << "Device ERR in set_listen(): Failure to bind listening sock\n";
 					close(listen_sock);
 					F_reset_callable = true;
 					return -1;
 			}
-			if (listen(listen_sock, MAXLISTEN) == -1) {
-				cerr << "Failed to listen\n";
+			if (listen(listen_sock, max_listen) == -1) {
+				cerr << "Device ERR in set_listen(): Failed to listen\n";
 				F_reset_callable = true;
 				close(listen_sock);
 				return -1;
@@ -184,15 +187,21 @@ class IODevice {
 		// start()
 		const int start() {
 			if (F_listening == false) {
-				cerr << "Must call listening() before calling start()\n";
+				cerr << "Device ERR in start(): Must call listening() before calling start()\n";
 				return -1;
 			}
 			if (F_running == true) {
-				cerr << "IO Device already running\n";
+				cerr << "Device ERR in start(): IO Device already running\n";
 				return -1;
 			}
 			if (F_pause == true) {
-				cerr << "Must call reset(), set_listen() before start()\n";
+				cerr << "Device ERR in start(): Must call reset(), set_listen() before start()\n";
+				return -1;
+			}
+			if (thread_count < 2) {
+				cerr << "Device ERR in start(): thread_count must be greater than 1\n";
+				close(listen_sock);
+				F_reset_callable = true;
 				return -1;
 			}
 			F_running = true;
@@ -200,20 +209,20 @@ class IODevice {
 			acc_epoll_fd = epoll_create1(0);
 			han_epoll_fd = epoll_create1(0);
 			if (acc_epoll_fd == -1 || han_epoll_fd == -1) {
-				cerr << "Failure in epoll_create1(0)\n";
+				cerr << "Device ERR in start(): Failure in epoll_create1(0)\n";
 				close(listen_sock);
 				F_listening = false;
 				F_running = false;
 				F_reset_callable = true;
 				return -1;
 			}
-			
+
 			struct epoll_event event;
 			event.events = EPOLLIN | EPOLLET;
 			event.data.fd = listen_sock;
 			if (epoll_ctl(acc_epoll_fd, EPOLL_CTL_ADD, listen_sock, &event) == -1)
 				{
-					cerr << "Failed to call epoll_ctl() in start()\n";
+					cerr << "Device ERR in start(): Failed to call epoll_ctl() in start()\n";
 					close(listen_sock);
 					F_listening = false;
 					F_running = false;
@@ -221,7 +230,7 @@ class IODevice {
 					return -1;
 			}
 
-			for(int i = 0; i < THREADCOUNT-1; i++) {
+			for(int i = 0; i < thread_count-1; i++) {
 				handler_vec.push_back(std::make_shared<handler>());
 			}
 
@@ -230,9 +239,9 @@ class IODevice {
 
 			for(std::shared_ptr<handler> handler_ptr : handler_vec) {
 					thread_vec.push_back(std::move(std::thread(&handler::handle_conns,
-									handler_ptr, std::ref(*this)))); 
+									handler_ptr, std::ref(*this))));
 			}
-			
+
 			return 0;
 		} // start()
 
@@ -242,10 +251,10 @@ class IODevice {
 		// stop()
 		const int stop() {
 			if (F_running != true) {
-				cerr << "Stop() called while not running\n";
+				cerr << "Device ERR in stop(): stop() called while not running\n";
 				return -1;
 			}
-			F_stop = true;	
+			F_stop = true;
 			for(std::thread& t : thread_vec) {
 				t.join();
 			}
@@ -254,21 +263,20 @@ class IODevice {
 			F_reset_callable = true;
 			if (F_master_fail == true) {
 				return -1;
-				cerr << "Master fail detected in stop()\n";
+				cerr << "Device ERR in stop(): Master fail detected in stop()\n";
 
 			}
-		
+
 			return 0;
 		} // stop()
 
 
-	
 
 
 		// pause()
 		const int pause() {
 			if (F_running != true) {
-				cerr << "Pause() called while not running\n";	
+				cerr << "Device ERR in pause(): pause() called while device not running\n";
 				return -1;
 			}
 			F_pause = true;
@@ -279,12 +287,12 @@ class IODevice {
 			thread_vec.clear();
 			F_reset_callable = true;
 			if (F_master_fail == true) {
-				cerr << "Master fail detected in pause()\n";
+				cerr << "Device ERR in pause(): Master fail detected in pause()\n";
 				return -1;
 			}
 
 			return 0;
-		} // pause() 
+		} // pause()
 
 
 
@@ -292,10 +300,10 @@ class IODevice {
 		// resume()
 		const int resume() {
 			if (F_pause != true)  {
-				cerr << "Device was not paused when resume() was called\n";
+				cerr << "Device ERR in resume(): Device was not paused when resume() was called\n";
 				return -1;
 			}
-		
+
 			F_reset_callable = false;
 			F_pause = false;
 
@@ -310,19 +318,16 @@ class IODevice {
 			F_running = true;
 
 			return 0;
-		} // resume() 
+		} // resume()
 
 
 
-
-		// reset()
-		const int reset(int _port = -1) {
+		// reset() w/o params
+		const int reset() {
 			if (F_reset_callable == false) {
-				cerr << "reset() not callable\n";
+				cerr << "Device ERR in reset(): reset() not callable\n";
 				return -1;
 			}
-			if (_port != -1)
-				port = _port;
 			handler_vec.clear();
 			struct acceptor _acceptor;
 			acceptor_L1 = _acceptor;
@@ -331,16 +336,70 @@ class IODevice {
 			F_stop = false;
 			F_master_fail = false;
 			F_pause = false;
-			
+
 			return 0;
-		} // reset()
-	
+		} // reset() w/o params
+
+
+
+		// reset() with port
+		const int reset(const int _port) {
+			if (F_reset_callable == false) {
+				cerr << "Device ERR in reset(): reset() not callable\n";
+				return -1;
+			}
+			port = _port;
+			handler_vec.clear();
+			struct acceptor _acceptor;
+			acceptor_L1 = _acceptor;
+			F_listening = false;
+			F_running = false;
+			F_stop = false;
+			F_master_fail = false;
+			F_pause = false;
+
+			return 0;
+		} // reset() with port
+
+
+
+		// reset() w/ options
+		const int reset(const struct Options& opt) {
+			if (F_reset_callable == false) {
+				cerr << "Device ERR in reset(): reset() not callable\n";
+				return -1;
+			}
+			port = opt.port;
+			thread_count = opt.thread_count;
+			buffer_size = opt.buffer_size;
+			accept_fail_limit = opt.accept_fail_limit;
+			accept_loop_reset = opt.accept_loop_reset;
+			add_fail_limit = opt.add_fail_limit;
+			add_loop_reset = opt.add_loop_reset;
+			max_events = opt.max_events;
+			max_listen = opt.max_listen;
+			accept_timeout = opt.accept_timeout;
+			handle_timeout = opt.handle_timeout;
+			handler_vec.clear();
+			struct acceptor _acceptor;
+			acceptor_L1 = _acceptor;
+			F_listening = false;
+			F_running = false;
+			F_stop = false;
+			F_master_fail = false;
+			F_pause = false;
+
+			return 0;
+		}
+
 
 
 
 		// n_running()
 		const int n_running() const {
-			if (F_master_fail == true) 
+			if (F_master_fail == true)
+				return 0;
+			if (F_running == false)
 				return 0;
 			int thread_count = 1; // Acceptor running
 			for (std::shared_ptr<handler> handler_ptr : handler_vec) {
@@ -353,7 +412,7 @@ class IODevice {
 
 
 
-		// check_master_fail() 
+		// check_master_fail()
 		const bool check_master_fail() const {
 			return F_master_fail;
 		} // check_master_fail()
@@ -369,17 +428,16 @@ class IODevice {
 
 
 
-
-	//						Private
-	//-------------------------------------------------------------------------------------
+		
+//	--- Private ---	
 
 	private:
 
 
-		// struct acceptor 
+		// struct acceptor
 		struct acceptor {
 
-			void accept_conns(IODevice& IODev) {
+			void accept_conns(Device& IODev) {
 				struct epoll_event event, events[1]; // One because we are only wanting
 			   		                              // to observe the listening
 												  // socket.
@@ -389,7 +447,7 @@ class IODevice {
 					if (IODev.F_master_fail == true || IODev.F_stop == true) {
 						close(IODev.listen_sock);
 						IODev.F_listening = false;
-						break; 
+						break;
 					}
 					if (F_acc_fail == true) {
 						IODev.F_master_fail = true;
@@ -407,24 +465,24 @@ class IODevice {
 						if (handler_ptr->F_han_fail == true)
 							han_fail_count++;
 					}
-					if (han_fail_count == THREADCOUNT - 1) {
+					if (han_fail_count == IODev.thread_count - 1) {
 						IODev.F_master_fail = true;
 						continue;
 					}
-					int nfds = epoll_wait(IODev.acc_epoll_fd, events, 1, ACCEPT_TIMEOUT);
+					int nfds = epoll_wait(IODev.acc_epoll_fd, events, 1, IODev.accept_timeout);
 					if (nfds == -1) {
-						cerr << "Failure in epoll_wait() in acceptor\n";
+						cerr << "acceptor ERR in accept_conns(): Failure in epoll_wait() in acceptor\n";
 						F_acc_fail = true;
 						continue;
 					}
 					if (nfds > 0) {
 						// Accept loop
 						while (true) {
-							if (n_accept_loop == ACCEPT_LOOP_RESET) {
+							if (n_accept_loop == IODev.accept_loop_reset) {
 								n_accept_fail = 0;
 								n_accept_loop = 0;
 							}
-							if (n_add_loop == ADD_LOOP_RESET) {
+							if (n_add_loop == IODev.add_loop_reset) {
 								n_add_fail = 0;
 								n_add_loop = 0;
 							}
@@ -434,12 +492,12 @@ class IODevice {
 									(sockaddr*)&client_addr, &client_size);
 							if (client_sock == -1) {
 								if ((errno == EAGAIN || errno == EWOULDBLOCK))
-									break; // Added all new connections 
+									break; // Added all new connections
 								else {
-									cerr << "Failed to accept new client\n";
+									cerr << "acceptor ERR in accept_conns(): Failed to accept new client\n";
 									n_accept_fail++;
 									n_accept_loop++;
-									if (n_accept_fail == ACCEPT_FAIL_LIMIT) {
+									if (n_accept_fail == IODev.accept_fail_limit) {
 										F_acc_fail = true;
 									}
 									break; // could not accept;
@@ -452,18 +510,18 @@ class IODevice {
 							event.data.fd = client_sock;
 							if (epoll_ctl(IODev.han_epoll_fd, EPOLL_CTL_ADD, client_sock,
 										&event) == -1) {
-								cerr << "Failure in epoll_ctl to add fd\n";
+								cerr << "acceptor ERR in accept_conns(): Failure in epoll_ctl to add fd\n";
 								close(client_sock);
 								n_add_fail++;
 								n_add_loop++;
-								if (n_add_fail == ADD_FAIL_LIMIT) {
+								if (n_add_fail == IODev.add_fail_limit) {
 									F_acc_fail = true;
 								}
 								break;
 							}
 							n_accept_loop++;
 							n_add_loop++;
-															
+
 							// ----- Testing purposes ----------------------
 
 							char host[NI_MAXHOST];
@@ -487,9 +545,9 @@ class IODevice {
 
 							// ----------------------------------------------
 
-							
-						} // while() 
-					} // if () 
+
+						} // while()
+					} // if ()
 				} // while()
 			} // accept_conns();
 
@@ -500,7 +558,7 @@ class IODevice {
 			int n_add_loop = 0;
 			bool F_acc_fail = false;
 
-		}; // struct acceptor 
+		}; // struct acceptor
 
 
 
@@ -512,27 +570,28 @@ class IODevice {
 		// struct handler
 		struct handler {
 
-			void handle_conns(IODevice& IODev) {
-				struct epoll_event events[MAXEVENTS];
-				// main event loop	
+			void handle_conns(Device& IODev) {
+				struct epoll_event events[IODev.max_events];
+				// main event loop
 				while(true) {
 					// cout << "Handler loop executing" << endl;
 					if (F_han_fail == true || IODev.F_master_fail == true ||
-							IODev.F_stop == true || IODev.F_pause == true) 
+							IODev.F_stop == true || IODev.F_pause == true)
 						break;
-					int nfds = epoll_wait(IODev.han_epoll_fd, events, MAXEVENTS, HANDLE_TIMEOUT);
+					int nfds = epoll_wait(IODev.han_epoll_fd, events,
+							IODev.max_events, IODev.handle_timeout);
 					if (nfds == -1) {
-						cerr << "Failure in epoll_wait() in handler thread\n";
+						cerr << "handler ERR in handle_conns(): Failure in epoll_wait() in handler thread\n";
 						F_han_fail = true;
 						continue;
 					}
 					for(int i = 0; i < nfds; i++) {
 						if ((events[i].events & EPOLLERR) || (events[i].events &
 										EPOLLHUP)) {
-							cerr << "EPOLLERR in handler\n";
+							cerr << "handler ERR in handle_conns(): EPOLLERR in handler\n";
 							if (epoll_ctl(IODev.han_epoll_fd, EPOLL_CTL_DEL,
 										events[i].data.fd, NULL) == -1) {
-								cerr << "Could not delete client socket from epoll\n";
+								cerr << "handler ERR in handle_conns(): Could not delete client socket from epoll\n";
 								F_han_fail = true;
 								break;
 							}
@@ -540,16 +599,16 @@ class IODevice {
 							continue;
 						}
 						bool close_fd = false;
-						char buff[BUFFERSIZE];
-						memset(buff, 0, BUFFERSIZE);
+						char buff[IODev.buffer_size];
+						memset(buff, 0, IODev.buffer_size);
 
 						while (true) {
-							int bytes_rec = recv(events[i].data.fd, buff, BUFFERSIZE,
-									0);
-							if (bytes_rec < 0) { 
+							int bytes_rec = recv(events[i].data.fd, buff,
+									IODev.buffer_size, 0);
+							if (bytes_rec < 0) {
 								if (errno!= EWOULDBLOCK && errno != EAGAIN) {
 									// cout << errno << endl;
-									cerr << "Could not receive message\n";
+									cerr << "handler ERR in handle_conns(): Could not receive message\n";
 									close_fd = true;
 								}
 								// cout << "No more data to recv" << endl;
@@ -563,7 +622,7 @@ class IODevice {
 							if (bytes_rec > 0) {
 								// cout << bytes_rec << " bytes received" << endl;
 								// handle_accept()
-								int client_sock = events[i].data.fd;	
+								int client_sock = events[i].data.fd;
 								(*IODev.handle)(std::move(std::string(buff)),
 										client_sock);
 								continue;
@@ -572,15 +631,15 @@ class IODevice {
 						if (close_fd) {
 							if (epoll_ctl(IODev.han_epoll_fd, EPOLL_CTL_DEL,
 										events[i].data.fd, NULL) == -1) {
-								cerr << "Could not delete client socket from epoll\n";
+								cerr << "handler ERR in handle_conns(): Could not delete client socket from epoll\n";
 								F_han_fail = true;
 							}
 							close(events[i].data.fd);
 						}
 					} // for()
 				} // while()
-				if (F_han_fail == true) 
-					cerr << "Handler thread failed\n";
+				if (F_han_fail == true)
+					cerr << "handler ERR in handle_conns(): handler thread failed\n";
 			}
 
 			// Struct handler public member variable
@@ -588,6 +647,7 @@ class IODevice {
 
 		}; // struct handler
 
+		
 
 
 		// Private member variables
@@ -616,7 +676,9 @@ class IODevice {
 		bool F_reset_callable = false;
 		bool F_listening = false;
 
-	}; // class IODevice
+
+	}; // class Device
+} // namespace IODevice
 } // namespace ScrybeIO
 
 #endif
