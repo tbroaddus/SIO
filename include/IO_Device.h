@@ -109,7 +109,6 @@ class Device {
 
 		// Destructor
 		~Device() {
-			close(listen_sock);
 		}
 
 
