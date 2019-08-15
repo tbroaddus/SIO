@@ -6,7 +6,7 @@
 namespace ScrybeIO {
 
 
-Worker::Worker(const int listen_sock){
+Worker::Worker(const int listen_sock) {
 
 	epoll_fd = epoll_create1(0);
 	if (epoll_fd == -1) {
@@ -72,6 +72,9 @@ void Worker::handle_conns(Device& IODev) {
 		}
 
 		for(int i = 0; i < nfds; i++) {
+			if (IODev.F_master_fail == true || IODev.F_stop == true || F_fail
+					== true)
+				break;
 			if (events[i].data.fd == IODev.listen_sock) {
 				while (true) {
 					if (n_accept_loop == IODev.accept_loop_reset)

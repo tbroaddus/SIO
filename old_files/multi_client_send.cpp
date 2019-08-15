@@ -65,9 +65,8 @@ int main() {
 	// Do-While loop
 		//Enter lines of text
 		char buf[4096];
-		
 		//Send to server
-		for(int i = 0; i < 4; i++) {
+		for(int i = 0; i < 10000; i++) {
 
 		string userInput = "Hello ";
 		userInput += to_string(i);
@@ -75,12 +74,11 @@ int main() {
 		if (sendRes == -1) {
 			cout << "Could not send to server! Whoops! \r\n";
 		}
-		sleep_for(seconds(1));
+		sleep_for(milliseconds(10));
 		memset(buf, 0, 4096);
 		int bytesrec = recv(sock, buf, 4096, 0);
 		cout << "SERVER> " << string(buf, bytesrec) << endl;
 		}
-		
 	// Close the socket
 	close(sock);
 	return 0;

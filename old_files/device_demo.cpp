@@ -65,7 +65,7 @@ int main() {
 	// Defining struct Options variables 
 	Dev_opt.port = 54000;	
 	Dev_opt.thread_count = 4;
-	Dev_opt.buffer_size = 4096;	
+	Dev_opt.buffer_size = 1024;	
 	Dev_opt.accept_fail_limit = 1;
 	Dev_opt.accept_loop_reset = 10;
 	Dev_opt.add_fail_limit = 1;	
@@ -197,6 +197,7 @@ int main() {
 	
 	// You can enter into a loop to stop or pause Device obj at will...
 	bool f_restart = false;
+	cout << IODev.n_running() << " threads running" << endl;
 	cout << "Enter 's' to \"stop\" device, or 'p' to \"pause\" device: "; 	
 	while(true) {
 		char input = getchar();

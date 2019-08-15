@@ -25,7 +25,12 @@ Device::Device(void(*_handle)(std::string request, int client_sock), const
 
 
 
-Device::~Device() {}
+Device::~Device() {
+	if (F_listening == true) 
+		close(listen_sock);
+	thread_vec.clear();
+	Worker_vec.clear();
+}
 
 
 
@@ -45,6 +50,7 @@ int Device::set_listen() {
 	if (listen_sock == -1) {
 		cerr << "Device ERR in set_listen(): ";
 		cerr << "Cannot create listening socket\n";
+		F_reset_callable = true;
 		return -1;
 	}
 	int set_sock = 1;
@@ -123,9 +129,10 @@ int Device::stop() {
 	for(std::thread& Worker_thread : thread_vec) {
 		Worker_thread.join();
 	}
-	close(listen_sock);
-	Worker_vec.clear();
 	thread_vec.clear();
+	Worker_vec.clear();
+	close(listen_sock);
+	F_listening = false;
 	F_running = false;
 	F_reset_callable = true;
 
@@ -148,13 +155,15 @@ int Device::pause() {
 	thread_vec.clear();
 	F_reset_callable = true;
 	int n_Workers_failed = 0;
-	for(std::shared_ptr<Worker> Worker_ptr : Worker_Vec) {
+	for(std::shared_ptr<Worker> Worker_ptr : Worker_vec) {
 		if (Worker_ptr->check_fail()) 
 			n_Workers_failed++;
 	}
 	if (n_Workers_failed > 0) {
 		cerr << "Device ERR in pause(): ";
-		cerr << n_Workers_failed << " Worker threads failed\n"
+		cerr << n_Workers_failed << " Worker threads failed\n";
+		close(listen_sock);
+		F_listening = false;
 		F_pause = false; // We do not want the ability to call resume() if all
 						 // Worker threads failed
 		return -1;	
@@ -166,45 +175,83 @@ int Device::pause() {
 
 
 int Device::resume() {
-
+	if (F_pause == false) {
+		cerr << "Device ERR in resume(): ";
+		cerr << "Device was could not be resumed\n";
+		return -1;
+	}
+	F_reset_callable = false;
+	F_pause = false;
+	for(std::shared_ptr<Worker> Worker_ptr : Worker_vec) {
+		thread_vec.push_back(std::move(std::thread(&Worker::handle_conns,
+						Worker_ptr, std::ref(*this))));
+	}
+	F_running = true;
+	
+	return 0;
 } // resume() 
 
 
 
 int Device::reset() {
+	if (F_reset_callable == false) {
+		cerr << "Device ERR in reset(): reset() not callable\n";
+		return -1;
+	}
+	if (F_listening == true) {
+		close(listen_sock);
+		F_listening = false;
+	}
+	Worker_vec.clear();
+	F_stop = false;
+	F_pause = false;
+	F_master_fail = false;
 
+	return 0;
 } // reset() 
 
 
 
-int Device::reset(const int _port) {
-
-} // reset(int)
-
-
-
 int Device::reset(const Options& IO_Options) {
+	if (F_reset_callable == false) {
+		cerr << "Device ERR in reset(): reset() not callable\n";
+		return -1;
+	}
+	port = IO_Options.port();
+	thread_count = IO_Options.tc();
+	buffer_size = IO_Options.buffer_size();
+	accept_fail_limit = IO_Options.accept_fail_limit();
+	accept_loop_reset = IO_Options.accept_loop_reset();
+	add_fail_limit = IO_Options.add_fail_limit();
+	add_loop_reset = IO_Options.add_loop_reset();
+	max_events = IO_Options.max_events();
+	max_listen = IO_Options.max_listen();
+	timeout = IO_Options.timeout();
+	if (F_listening == true) {
+		close(listen_sock);
+		F_listening = false;
+	}
+	Worker_vec.clear();
+	F_stop = false;
+	F_pause = false;
+	F_master_fail = false;
 
+	return 0;
 } // reset(const Options&)
 
 
 
-int Device::n_running() const {
-
+int Device::n_threads_running() const {
+	if (F_running == false)
+		return 0;
+	int n_running = 0;
+	for (std::shared_ptr<Worker> Worker_ptr : Worker_vec) {
+		if (Worker_ptr->check_running())
+			n_running++;
+	}
+	
+	return n_running;
 } // n_running() 
-
-
-
-bool Device::check_master_fail() const {
-
-} // check_master_fail()
-
-
-
-void Device::set_master_fail() {
-
-} // set_master_fail() 
-
 
 
 } // namespace ScrybeIO

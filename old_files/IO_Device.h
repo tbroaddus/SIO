@@ -400,12 +400,12 @@ class Device {
 				return 0;
 			if (F_running == false)
 				return 0;
-			int thread_count = 1; // Acceptor running
+			int n_thread_count = 1; // Acceptor running
 			for (std::shared_ptr<handler> handler_ptr : handler_vec) {
 				if (handler_ptr->F_han_fail == false)
-					thread_count++;
+					n_thread_count++;
 			}
-			return thread_count;
+			return n_thread_count;
 		} // n_running()
 
 
@@ -505,7 +505,7 @@ class Device {
 							int flags = fcntl(client_sock, F_GETFL, 0);
 							flags |= O_NONBLOCK;
 							fcntl(client_sock, F_SETFL, flags);
-							event.events = EPOLLIN | EPOLLET;
+							event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
 							event.data.fd = client_sock;
 							if (epoll_ctl(IODev.han_epoll_fd, EPOLL_CTL_ADD, client_sock,
 										&event) == -1) {
@@ -634,7 +634,20 @@ class Device {
 								F_han_fail = true;
 							}
 							close(events[i].data.fd);
+						} 
+						else {
+							epoll_event event;
+							event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+							event.data.fd = events[i].data.fd;
+							if (epoll_ctl(IODev.han_epoll_fd, EPOLL_CTL_MOD,
+										events[i].data.fd,
+										&event) == -1) {
+								cerr << "Handler ERR in accept_conns(): Failure in epoll_ctl \n";
+								F_han_fail = true;
+							}
 						}
+
+
 					} // for()
 				} // while()
 				if (F_han_fail == true)

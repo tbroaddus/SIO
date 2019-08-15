@@ -56,16 +56,10 @@ class Device {
 
 		int reset();
 
-		int reset(const int _port);
-
 		int reset(Options& IO_Options);
 
-		int n_running() const;
-
-		bool check_master_fail() const;
-
-		void set_master_fail();
-		
+		int n_threads_running() const;
+	
 
 	private:
 
