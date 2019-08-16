@@ -3,12 +3,11 @@
 
 #include "Options.h"
 
-namespace ScrybeIO {
+using namespace ScrybeIO;
 
+	Options::Options(){}
 
-	void Options::Options(){}
-
-	void Options::~Options(){}
+	Options::~Options(){}
 
 	
 	// Setters
@@ -54,44 +53,43 @@ namespace ScrybeIO {
 
 
 	// Getters
-	int Options::port() const {
+	int Options::get_port() const {
 		return port;
 	}
 
-	int Options::tc() const {
+	int Options::get_tc() const {
 		return tc;
 	}
 
-	int Options::buffer_size() const {
+	int Options::get_buffer_size() const {
 		return buffer_size;
 	}
 
-	int Options::accept_fail_limit() const {
+	int Options::get_accept_fail_limit() const {
 		return accept_fail_limit;
 	}
 
-	int Options::accept_loop_reset() const {
+	int Options::get_accept_loop_reset() const {
 		return accept_loop_reset;
 	}
 
-	int Options::add_fail_limit() const {
+	int Options::get_add_fail_limit() const {
 		return add_fail_limit;
 	}
 
-	int Options::add_loop_reset() const {
+	int Options::get_add_loop_reset() const {
 		return add_loop_reset;
 	}
 
-	int Options::max_events() const {
+	int Options::get_max_events() const {
 		return max_events;
 	}
 
-	int Options::max_listen() const {
+	int Options::get_max_listen() const {
 		return max_listen;
 	}
 
-	int Options::timeout() const {
+	int Options::get_timeout() const {
 		return timeout;
 	}
 
-} // Namespace ScrybeIO

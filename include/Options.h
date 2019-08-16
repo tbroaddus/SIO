@@ -27,16 +27,16 @@ class Options {
 		void set_max_listen(const int _max_listen);
 		void set_timeout(const int _timeout);
 
-		int port() const;
-		int tc() const;
-		int buffer_size() const;
-		int accept_fail_limit() const;
-		int accept_loop_reset() const;
-		int add_fail_limit() const;
-		int add_loop_reset() const;
-		int max_events() const;
-		int max_listen() const;
-		int timeout() const;
+		int get_port() const;
+		int get_tc() const;
+		int get_buffer_size() const;
+		int get_accept_fail_limit() const;
+		int get_accept_loop_reset() const;
+		int get_add_fail_limit() const;
+		int get_add_loop_reset() const;
+		int get_max_events() const;
+		int get_max_listen() const;
+		int get_timeout() const;
 
 
 

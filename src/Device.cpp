@@ -2,35 +2,30 @@
 //	Author:	Tanner Broaddus
 
 #include "Device.h"
+#include "Options.h"
+#include "Worker.h"
 
-namespace ScrybeIO {
-
+using namespace ScrybeIO;
 
 
 Device::Device(void(*_handle)(std::string request, int client_sock), const
 		Options& IO_Options) {
-
 	handle = _handle;
-	port = IO_Options.port();
-	thread_count = IO_Options.tc();
-	buffer_size = IO_Options.buffer_size();
-	accept_fail_limit = IO_Options.accept_fail_limit();
-	accept_loop_reset = IO_Options.accept_loop_reset();
-	add_fail_limit = IO_Options.add_fail_limit();
-	add_loop_reset = IO_Options.add_loop_reset();
-	max_events = IO_Options.max_events();
-	max_listen = IO_Options.max_listen();
-	timeout = IO_Options.timeout();
+	port = IO_Options.get_port();
+	thread_count = IO_Options.get_tc();
+	buffer_size = IO_Options.get_buffer_size();
+	accept_fail_limit = IO_Options.get_accept_fail_limit();
+	accept_loop_reset = IO_Options.get_accept_loop_reset();
+	add_fail_limit = IO_Options.get_add_fail_limit();
+	add_loop_reset = IO_Options.get_add_loop_reset();
+	max_events = IO_Options.get_max_events();
+	max_listen = IO_Options.get_max_listen();
+	timeout = IO_Options.get_timeout();
 }
 
 
 
-Device::~Device() {
-	if (F_listening == true) 
-		close(listen_sock);
-	thread_vec.clear();
-	Worker_vec.clear();
-}
+Device::~Device() {}
 
 
 
@@ -55,7 +50,7 @@ int Device::set_listen() {
 	}
 	int set_sock = 1;
 	// Allows bind() without error after reset() call
-	if (setsockopt(listen_sock, SOL_Socket, SO_REUSEPORT, &set_sock,
+	if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEPORT, &set_sock,
 				sizeof(set_sock)) == -1) {
 		cerr << "Device ERR in set_listen(): ";
 		cerr << "Failure in setsockopt()\n";
@@ -66,10 +61,18 @@ int Device::set_listen() {
 	sockaddr_in listen_addr;
 	listen_addr.sin_family = AF_INET;
 	listen_addr.sin_port = htons(port);
+	inet_pton(AF_INET, "0.0.0.0", &listen_addr.sin_addr);
 	if (bind(listen_sock, (sockaddr*)&listen_addr, sizeof(listen_addr)) == -1)
 	{
 		cerr << "Device ERR in set_listen(): ";
 		cerr << "Failure to bind listening socket\n";
+		close(listen_sock);
+		F_reset_callable = true;
+		return -1;
+	}
+	if (listen(listen_sock, max_listen) == -1) {
+		cerr << "Device ERR in set_listen(): ";
+		cerr << "Failed to set socket to listen\n";
 		close(listen_sock);
 		F_reset_callable = true;
 		return -1;
@@ -103,17 +106,35 @@ int Device::start() {
 		F_reset_callable = true;
 		return -1;
 	}
-	F_running = true;
-	F_stop = false;
-
-	for(int i = 0; i < thread_count; i++) {
-		Worker_vec.push_back(std::make_shared<Worker>(listen_sock));
+	epoll_fd = epoll_create1(0);
+	if (epoll_fd == -1) {
+		cerr << "Device ERR in start(): ";
+		cerr << "Failure in epoll_create1(0)\n";
+		close(listen_sock);
+		F_listening = false;
+		F_reset_callable = true;
+		return -1;
 	}
-
+	struct epoll_event event;
+	event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+	event.data.fd = listen_sock;
+	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_sock, &event) == -1) {
+		cerr << "Device ERR in start(): ";
+		cerr << "Failed to add listening socket to epoll\n";
+		close(listen_sock);
+		F_listening = false;
+		F_reset_callable = true;
+		return -1;
+	}
+	for(int i = 0; i < thread_count; i++) {
+		Worker_vec.push_back(std::make_shared<Worker>());
+	}
 	for(std::shared_ptr<Worker> Worker_ptr : Worker_vec) {
 		thread_vec.push_back(std::move(std::thread(&Worker::handle_conns,
 						Worker_ptr, std::ref(*this))));
 	}
+	F_stop = false;
+	F_running = true;
 
 	return 0;
 } // start()
@@ -121,7 +142,7 @@ int Device::start() {
 
 
 int Device::stop() {
-	(F_running == false) {
+	if (F_running == false) {
 		cerr << "Device ERR in stop(): stop() called while not running\n";
 		return -1;
 	}
@@ -130,7 +151,6 @@ int Device::stop() {
 		Worker_thread.join();
 	}
 	thread_vec.clear();
-	Worker_vec.clear();
 	close(listen_sock);
 	F_listening = false;
 	F_running = false;
@@ -202,10 +222,10 @@ int Device::reset() {
 		close(listen_sock);
 		F_listening = false;
 	}
+	close(epoll_fd);
 	Worker_vec.clear();
 	F_stop = false;
 	F_pause = false;
-	F_master_fail = false;
 
 	return 0;
 } // reset() 
@@ -217,24 +237,24 @@ int Device::reset(const Options& IO_Options) {
 		cerr << "Device ERR in reset(): reset() not callable\n";
 		return -1;
 	}
-	port = IO_Options.port();
-	thread_count = IO_Options.tc();
-	buffer_size = IO_Options.buffer_size();
-	accept_fail_limit = IO_Options.accept_fail_limit();
-	accept_loop_reset = IO_Options.accept_loop_reset();
-	add_fail_limit = IO_Options.add_fail_limit();
-	add_loop_reset = IO_Options.add_loop_reset();
-	max_events = IO_Options.max_events();
-	max_listen = IO_Options.max_listen();
-	timeout = IO_Options.timeout();
+	port = IO_Options.get_port();
+	thread_count = IO_Options.get_tc();
+	buffer_size = IO_Options.get_buffer_size();
+	accept_fail_limit = IO_Options.get_accept_fail_limit();
+	accept_loop_reset = IO_Options.get_accept_loop_reset();
+	add_fail_limit = IO_Options.get_add_fail_limit();
+	add_loop_reset = IO_Options.get_add_loop_reset();
+	max_events = IO_Options.get_max_events();
+	max_listen = IO_Options.get_max_listen();
+	timeout = IO_Options.get_timeout();
 	if (F_listening == true) {
 		close(listen_sock);
 		F_listening = false;
 	}
+	close(epoll_fd);
 	Worker_vec.clear();
 	F_stop = false;
 	F_pause = false;
-	F_master_fail = false;
 
 	return 0;
 } // reset(const Options&)
@@ -254,4 +274,3 @@ int Device::n_threads_running() const {
 } // n_running() 
 
 
-} // namespace ScrybeIO

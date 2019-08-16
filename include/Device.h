@@ -56,7 +56,7 @@ class Device {
 
 		int reset();
 
-		int reset(Options& IO_Options);
+		int reset(const Options& IO_Options);
 
 		int n_threads_running() const;
 	
@@ -66,6 +66,7 @@ class Device {
 		void (*handle)(std::string request, int client_sock);
 		std::vector<std::shared_ptr<Worker>> Worker_vec;
 		std::vector<std::thread> thread_vec;
+		int epoll_fd;
 		int listen_sock;
 		int port;
 		int thread_count;
@@ -80,7 +81,6 @@ class Device {
 		bool F_running = false;
 		bool F_stop = false;
 		bool F_pause = false;
-		bool F_master_fail = false;
 		bool F_reset_callable = false;
 		bool F_listening = false;
 

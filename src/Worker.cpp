@@ -2,67 +2,28 @@
 //	Author:	Tanner Broaddus
 
 #include "Worker.h"
+#include "Device.h"
 
-namespace ScrybeIO {
+using namespace ScrybeIO;
 
-
-Worker::Worker(const int listen_sock) {
-
-	epoll_fd = epoll_create1(0);
-	if (epoll_fd == -1) {
-		cerr << "Worker ERR in constructor(): ";
-		cerr << "Failure in epoll_create1(0)\n";
-		return;
-	} 
-	struct epoll_event event;
-	event.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
-	event.data.fd = listen_sock;
-	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_sock, &event) ==
-			-1)
-	{
-		cerr << "Worker ERR in start(): ";
-		cerr << "Failed to add listening socket to epoll ";
-		cerr << "in handle_conns()\n";
-		return;
-	}
-	F_ready = true;
-}
+Worker::Worker() {}
 
 
 
-Worker::~Worker() {
-
-	close(epoll_fd);
-
-}
+Worker::~Worker() {}
 
 
 
 void Worker::handle_conns(Device& IODev) {
-
-	if (!F_ready) {
-		cerr << "Worker ERR in handle_conns(): ";
-		cerr << "handle_conns called when worker was not ready\n";
-		F_fail = true;
-		return;
-	}
 	F_running = true;
 	struct epoll_event event, events[IODev.max_events];
-
 	// main event loop
 	while(true) {
-
-		if (IODev.F_master_fail == true || IODev.F_stop == true ||
-				F_fail == true) {
-			F_running = false;
-			F_ready = false;
-			break;
-		}
-		if (IODev.F_pause == true) {
+		if (IODev.F_stop == true || IODev.F_pause == true || F_fail == true) {
 			F_running = false;
 			break;
 		}
-		int nfds = epoll_wait(epoll_fd, events, IODev.max_events,
+		int nfds = epoll_wait(IODev.epoll_fd, events, IODev.max_events,
 				IODev.timeout);
 		if (nfds == -1) {
 			cerr << "Worker ERR in handle_conns(): ";
@@ -72,8 +33,7 @@ void Worker::handle_conns(Device& IODev) {
 		}
 
 		for(int i = 0; i < nfds; i++) {
-			if (IODev.F_master_fail == true || IODev.F_stop == true || F_fail
-					== true)
+			if (IODev.F_stop == true || F_fail == true)
 				break;
 			if (events[i].data.fd == IODev.listen_sock) {
 				while (true) {
@@ -107,9 +67,9 @@ void Worker::handle_conns(Device& IODev) {
 					int flags = fcntl(client_sock, F_GETFL, 0);
 					flags |= O_NONBLOCK;
 					fcntl(client_sock, F_SETFL, flags);
-					event.events = EPOLLIN | EPOLLET;
+					event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
 					event.data.fd = client_sock;
-					if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_sock, &event)
+					if (epoll_ctl(IODev.epoll_fd, EPOLL_CTL_ADD, client_sock, &event)
 							== -1) {
 						cerr << "Worker ERR in handle_conns(): ";
 						cerr << "Failure in epoll_ctl to add client fd\n";
@@ -147,13 +107,22 @@ void Worker::handle_conns(Device& IODev) {
 					// ----------------------------------------------
 
 				} // while()
+				epoll_event event;
+				event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+				event.data.fd = IODev.listen_sock;
+				if (epoll_ctl(IODev.epoll_fd, EPOLL_CTL_MOD, IODev.listen_sock,
+							&event) == -1) {
+					cerr << "Device ERR in handle_conns(): ";
+					cerr << "Failure in epoll_ctl \n";
+					F_fail = true;
+				}
 			} // if()
 			else {
 				if ((events[i].events & EPOLLERR) || (events[i].events &
 							EPOLLHUP)) {
 					cerr << "Worker ERR in handle_conns(): ";
 					cerr << "EPOLLER in Worker\n";
-					if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd,
+					if (epoll_ctl(IODev.epoll_fd, EPOLL_CTL_DEL, events[i].data.fd,
 								NULL) == -1) {
 						cerr << "Worker ERR in handle_conns(): ";
 						cerr << "Could not delete client socket from epoll\n";
@@ -163,10 +132,10 @@ void Worker::handle_conns(Device& IODev) {
 					close(events[i].data.fd);
 					continue;
 				}
+
 				bool close_fd = false;
 				char buff[IODev.buffer_size];
 				memset(buff, 0, IODev.buffer_size);
-
 				while (true) {
 					int bytes_rec = recv(events[i].data.fd, buff,
 							IODev.buffer_size, 0);
@@ -183,7 +152,7 @@ void Worker::handle_conns(Device& IODev) {
 						close_fd = true;
 						break;
 					}
-					if (bytes_rec > 0) {
+					else {
 						// cout << bytes_rec << " bytes received" << endl;
 						// handle_accept()
 						(*IODev.handle)(std::move(std::string(buff)),
@@ -192,7 +161,7 @@ void Worker::handle_conns(Device& IODev) {
 					}
 				}
 				if (close_fd) {
-					if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd,
+					if (epoll_ctl(IODev.epoll_fd, EPOLL_CTL_DEL, events[i].data.fd,
 								NULL) == -1)
 					{	
 						cerr << "Worker ERR in handle_conns(): ";
@@ -201,6 +170,17 @@ void Worker::handle_conns(Device& IODev) {
 						F_fail = true;
 					}
 					close(events[i].data.fd);
+				}
+				else {
+					epoll_event event;
+					event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+					event.data.fd = events[i].data.fd;
+					if (epoll_ctl(IODev.epoll_fd, EPOLL_CTL_MOD,
+								events[i].data.fd, &event) == -1) {
+						cerr << "Worker ERR in handle_conns(): ";
+						cerr << "Failure in epoll_ctl \n";
+						F_fail = true;
+					}
 				}
 			} // else()
 		} //for()
@@ -221,11 +201,3 @@ bool Worker::check_fail() const {
 	return F_fail;
 }
 
-
-
-bool Worker::ready() const {
-	return F_ready;
-}
-
-
-} // namespace ScrybeIO

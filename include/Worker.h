@@ -17,15 +17,14 @@
 #include <netdb.h>
 #include <errno.h>
 
-#include "Device.h"
-#include "Options.h"
-
 using std::cout;
 using std::endl;
 using std::cerr;
 
 
 namespace ScrybeIO {
+
+class Device; // Forward Declaration
 
 class Worker {
 	
@@ -40,18 +39,14 @@ class Worker {
 		bool check_running() const;
 
 		bool check_fail() const;
-
-		bool ready() const;
 	
 	private:
 
-		int epoll_fd;
 		int n_accept_fail = 0;
 		int n_accept_loop = 0;
 		int n_add_fail = 0;
 		int n_add_loop = 0;
 		bool F_running = false;
-		bool F_ready = false;
 		bool F_fail = false;
 
 
