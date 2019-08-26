@@ -4,28 +4,12 @@
 #ifndef WORKER_H
 #define WORKER_H
 
-#include <iostream>
-#include <cstdio>
-
-#include <unistd.h>
-#include <string.h>
-#include <fcntl.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/epoll.h>
-#include <netdb.h>
-#include <errno.h>
-
-using std::cout;
-using std::endl;
-using std::cerr;
-
-
 namespace ScrybeIO {
+
 
 class Device; // Forward Declaration
 
+// class Worker
 class Worker {
 	
 	public:
@@ -42,13 +26,12 @@ class Worker {
 	
 	private:
 
-		int n_accept_fail = 0;
-		int n_accept_loop = 0;
-		int n_add_fail = 0;
-		int n_add_loop = 0;
-		bool F_running = false;
-		bool F_fail = false;
-
+		int n_accept_fail;
+		int n_accept_loop;
+		int n_add_fail;
+		int n_add_loop;
+		bool F_running;
+		bool F_fail;
 
 
 }; // class Worker

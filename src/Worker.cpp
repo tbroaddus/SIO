@@ -1,12 +1,36 @@
 //	File:	Worker.cpp
 //	Author:	Tanner Broaddus
 
+
+#include <iostream>
+#include <cstdio>
+
+#include <unistd.h>
+#include <string.h>
+#include <fcntl.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/epoll.h>
+#include <netdb.h>
+#include <errno.h>
+
 #include "Worker.h"
 #include "Device.h"
 
+using std::cout;
+using std::endl;
+using std::cerr;
 using namespace ScrybeIO;
 
-Worker::Worker() {}
+Worker::Worker() {
+	n_accept_fail = 0;
+	n_accept_loop = 0;
+	n_add_fail = 0;
+	n_add_loop = 0;
+	F_running = false;
+	F_fail = false;
+}
 
 
 

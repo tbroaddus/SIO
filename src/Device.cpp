@@ -1,12 +1,33 @@
 //	File:	Device.cpp
 //	Author:	Tanner Broaddus
 
-#include "Device.h"
-#include "Options.h"
-#include "Worker.h"
 
+#include <iostream>
+#include <cstdio>
+
+#include <unistd.h>
+#include <string.h>
+#include <fcntl.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/epoll.h>
+#include <netdb.h>
+#include <errno.h>
+
+#include "Device.h"
+
+using std::cout;
+using std::endl;
+using std::cerr;
 using namespace ScrybeIO;
 
+
+
+// TODO: Define default constructor
+// Device::Device() {}
+
+// TODO: Move constructor ?
 
 Device::Device(void(*_handle)(std::string request, int client_sock), const
 		Options& IO_Options) {
@@ -21,7 +42,17 @@ Device::Device(void(*_handle)(std::string request, int client_sock), const
 	max_events = IO_Options.get_max_events();
 	max_listen = IO_Options.get_max_listen();
 	timeout = IO_Options.get_timeout();
+	bool F_running = false;
+	bool F_stop = false;
+	bool F_pause = false;
+	bool F_reset_callable = false;
+	bool F_listening = false;
 }
+
+// TODO: Decide if this is needed
+// Device::Device(Device& Device_obj) {}
+
+// TODO: Move assignment operator ?
 
 
 

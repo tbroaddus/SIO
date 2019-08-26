@@ -5,7 +5,20 @@
 
 using namespace ScrybeIO;
 
-	Options::Options(){}
+
+	Options::Options() {
+		port = 54000;
+		tc = 1;
+		buffer_size = 1024;
+		accept_fail_limit = 1;
+		accept_loop_reset = 10;
+		add_fail_limit = 1;
+		add_loop_reset = 10;
+		max_events = 100;
+		max_listen = 100;
+		timeout = 1000;
+	}
+
 
 	Options::~Options(){}
 

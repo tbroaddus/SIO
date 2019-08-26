@@ -43,15 +43,15 @@ class Options {
 	private:
 
 		int port;
-		int tc = 1;
-		int buffer_size = 4096;			
-		int accept_fail_limit = 1;
-		int accept_loop_reset = 10;
-		int add_fail_limit = 1;
-		int add_loop_reset = 10;
-		int max_events = 50;
-		int max_listen = 100;
-		int timeout = 1000;			// In milliseconds
+		int tc;
+		int buffer_size;			
+		int accept_fail_limit;
+		int accept_loop_reset;
+		int add_fail_limit;
+		int add_loop_reset;
+		int max_events;
+		int max_listen;
+		int timeout;			// In milliseconds
 
 }; // Class Options
 } // namespace ScrybeIO

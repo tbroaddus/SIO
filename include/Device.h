@@ -1,32 +1,17 @@
 //	File:		Device.h
 //	Author:		Tanner Broaddus
 
+
 #ifndef DEVICE_H
 #define DEVICE_H
 
-#include <iostream>
-#include <cstdio>
 #include <thread>
 #include <string>
 #include <vector>
 #include <memory>
 
-#include <unistd.h>
-#include <string.h>
-#include <fcntl.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/epoll.h>
-#include <netdb.h>
-#include <errno.h>
-
 #include "Options.h"
 #include "Worker.h"
-
-using std::cout;
-using std::endl;
-using std::cerr;
 
 
 namespace ScrybeIO {
@@ -38,9 +23,13 @@ class Device {
 		
 		friend Worker;
 
+		Device();
+
 		Device(void(*_handle)(std::string request, int
 					client_sock),
 				const Options& IO_Options);
+
+		Device(Device& Device_obj);
 	
 		~Device();
 
@@ -78,12 +67,11 @@ class Device {
 		int max_events;
 		int max_listen;
 		int timeout;
-		bool F_running = false;
-		bool F_stop = false;
-		bool F_pause = false;
-		bool F_reset_callable = false;
-		bool F_listening = false;
-
+		bool F_running;
+		bool F_stop;
+		bool F_pause;
+		bool F_reset_callable;
+		bool F_listening;
 
 
 }; // Class Device
