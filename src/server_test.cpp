@@ -6,9 +6,13 @@
 #include <chrono>
 #include <unistd.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 // Including Device.h. Also includes Options.h and Worker.h
 #include "Device.h"
+
+using namespace std;
 
 
 // Simple echo function to send message back to client
