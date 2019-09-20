@@ -5,6 +5,7 @@
 #include "gtest/gtest.h"
 
 #include <iostream>
+#include <string>
 #include <thread>
 #include <chrono>
 #include <unistd.h>
@@ -15,12 +16,7 @@
 #include <Device.h>
 
 using std::cout;
-using std::cerr;
 using std::endl;
-
-
-// Simple macro for cout statement to GTest results
-#define GTEST_COUT std::cout << "[          ] [ INFO ]"
 
 
 // Simple echo function to send message back to client
@@ -31,13 +27,13 @@ void handle_accept(std::string request, int client_sock) {
 }
 
 
-//				FunctionTest
+//				BasicFunctionTest
 // ---------------------------------------------------------------------------
 /*
 	Testing basic start(), pause(), reset(), start(), stop() procedure of
 	Device object
 */
-TEST(DeviceTest, FunctionTest) {
+TEST(DeviceTest, BasicFunctionTest) {
 
 	ScrybeIO::Options IO_Options;
 
@@ -75,9 +71,30 @@ TEST(DeviceTest, FunctionTest) {
 	ASSERT_EQ(IO_Device.n_threads_running(), 0) << "Threads reportedly "
 		"running while Device is paused";
 
-	// Testing reset() with change in 4 threads to 1 thread
+	// Testing reset() and start up procedure
+	ASSERT_NE(IO_Device.reset(), -1) << "reset() was not callable";
+
+	ASSERT_NE(IO_Device.set_listen(), -1) << "Failure in set_listen() "
+		"after reset()";
+
+	ASSERT_NE(IO_Device.start(), -1) << "Failure in start() after reset()";
+
+	ASSERT_EQ(IO_Device.n_threads_running(), 4) << "Failure in "
+		"n_threads_running()";
+	
+	// Testing pause() after reset()
+	ASSERT_NE(IO_Device.pause(), -1) << "Worker thread failure detected "
+		"in pause()";
+
+	// Testing n_threads_running() while Device is not running
+	ASSERT_EQ(IO_Device.n_threads_running(), 0) << "Threads reportedly "
+		"running while Device is paused";
+
+	// Testing reset(IO_Options) with change in 4 threads to 1 thread
 	IO_Options.set_tc(1);
-	ASSERT_NE(IO_Device.reset(IO_Options), -1) << "reset() was not callable";
+
+	ASSERT_NE(IO_Device.reset(IO_Options), -1) << "reset(IO_Options) was "
+		"not callable";
 		
 	// Testing set_listen() after reset(IO_Device);
 	ASSERT_NE(IO_Device.set_listen(), -1) << "Failure in "
@@ -104,7 +121,7 @@ TEST(DeviceTest, FunctionTest) {
 // ---------------------------------------------------------------------------
 /*
    Testing protection measures designed to prevent inappropriate use of Device
-   from the User
+   from the user
 */
 TEST(DeviceTest, UserErrorTest) {
 
@@ -171,14 +188,15 @@ TEST(DeviceTest, UserErrorTest) {
 
 	ASSERT_NE(IO_Device.pause(), -1) << "Could not call pause()";
 
-	ASSERT_EQ(IO_Device.set_listen(), -1) << "set_listen() called "
-		"while paused";
+	ASSERT_EQ(IO_Device.set_listen(), -1) << "set_listen() called while "
+		"paused";	
 
-	ASSERT_EQ(IO_Device.start(), -1) <<  "start() called while "
+	ASSERT_EQ(IO_Device.start(), -1) << "start() called while paused";
+
+	ASSERT_EQ(IO_Device.stop(), -1) << "stop() called while "
 		"paused";
 
-	ASSERT_EQ(IO_Device.stop(), -1) <<  "stop() called while "
-		"paused";
+	ASSERT_EQ(IO_Device.pause(), -1) << "pause() called while paused";
 
 	// Calling reset() and testing innapropriate function calls before starting
 	// Device
@@ -214,11 +232,13 @@ TEST(DeviceTest, UserErrorTest) {
 
 	ASSERT_EQ(IO_Device.reset(), -1) << "reset() called while running";
 
-	ASSERT_EQ(IO_Device.reset(IO_Options), -1) << "reset(IO_Options "
+	ASSERT_EQ(IO_Device.reset(IO_Options), -1) << "reset(IO_Options) "
 		"while running";
 
 	// Calling reset(IO_Options) and testing innapropriate function calls before starting
 	// Device
+
+	ASSERT_NE(IO_Device.pause(), -1) << "Could not call pause()";
 
 	IO_Options.set_tc(2);
 
@@ -237,7 +257,7 @@ TEST(DeviceTest, UserErrorTest) {
 	ASSERT_EQ(IO_Device.resume(), -1) << "resume() inappropriately called "
 		"before set_listen(), start(), and pause()";
 
-	// Starting Device and testing inppropriate function calls while running
+	// Starting Device and testing inappropriate function calls while running
 
 	ASSERT_NE(IO_Device.set_listen(), -1) << "Could not call set_listen()";
 
@@ -254,10 +274,29 @@ TEST(DeviceTest, UserErrorTest) {
 
 	ASSERT_EQ(IO_Device.reset(), -1) << "reset() called while running";
 
-	ASSERT_EQ(IO_Device.reset(IO_Options), -1) << "reset(IO_Options "
+	ASSERT_EQ(IO_Device.reset(IO_Options), -1) << "reset(IO_Options) "
 		"while running";
 
+	// Stopping Device and testing inappropriate function calls while stopped
 
+	ASSERT_NE(IO_Device.stop(), -1) << "Could not call stop()";
+
+	ASSERT_EQ(IO_Device.stop(), -1) << "stop() inappropriately called "
+		"while stopped";
+
+	ASSERT_EQ(IO_Device.pause(), -1) << "pause() inappropriately called "
+		"while stopped";
+
+	ASSERT_EQ(IO_Device.resume(), -1) << "resume() inappropriately called "
+		"while stopped";
+
+	ASSERT_EQ(IO_Device.set_listen(), -1) << "set_listen() inappropriately "
+		"called while stopped";
+
+	ASSERT_EQ(IO_Device.start(), -1) << "start() inappropriately "
+		"called while stopped";
+	
+	// End of UserErrorTest
 }
 
 int main(int argc, char **argv) {

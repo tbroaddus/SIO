@@ -24,8 +24,10 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 target_link_libraries(scrybeio-test Threads::Threads)
 
+
 # GTest related
 find_package(GTest REQUIRED)
+
 add_executable(runTests 
   "${PROJECT_SOURCE_DIR}/src/Device.cpp"
   "${PROJECT_SOURCE_DIR}/src/Worker.cpp"
@@ -38,3 +40,28 @@ target_link_libraries(runTests
   Threads::Threads
 )
 
+# Function Tests
+add_executable(FunctionTests
+  "${PROJECT_SOURCE_DIR}/src/Device.cpp"
+  "${PROJECT_SOURCE_DIR}/src/Worker.cpp"
+  "${PROJECT_SOURCE_DIR}/src/Options.cpp"
+  "${PROJECT_SOURCE_DIR}/unit-tests/Function_Test.cpp"
+)
+
+target_link_libraries(FunctionTests 
+  ${GTEST_LIBRARIES} 
+  Threads::Threads
+)
+
+# Network Tests
+add_executable(NetworkTests
+  "${PROJECT_SOURCE_DIR}/src/Device.cpp"
+  "${PROJECT_SOURCE_DIR}/src/Worker.cpp"
+  "${PROJECT_SOURCE_DIR}/src/Options.cpp"
+  "${PROJECT_SOURCE_DIR}/unit-tests/Network_Test.cpp"
+)
+
+target_link_libraries(NetworkTests 
+  ${GTEST_LIBRARIES} 
+  Threads::Threads
+)

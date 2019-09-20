@@ -2,6 +2,7 @@
 //	Author:	Tanner Broaddus
 
 #include <iostream>
+#include <string>
 #include <thread>
 #include <chrono>
 #include <unistd.h>
