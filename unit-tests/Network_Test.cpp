@@ -67,7 +67,7 @@ int client_send() {
 		}
 		
 		char buf[1024];
-		for (int i = 0; i < 5; i++) {
+		for (int i = 0; i < 10; i++) {
 			string message = "Hello";
 			int sendRes = send(sock, message.c_str(), message.size() + 1, 0);
 			if (sendRes == -1) { 
