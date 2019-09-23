@@ -45,7 +45,9 @@ int main() {
 	ScrybeIO::Device IO_Device(&handle_accept, IO_Options);
 
 	// Setting Device to listen (starting listening queue)	
-	if(IO_Device.set_listen() == -1) {
+	int result = IO_Device.set_listen();
+	cout << "result = " << result << endl;
+	if(result == -1) {
 		cout << "Could not call set_listen()" << endl;
 		return 0;
 	}

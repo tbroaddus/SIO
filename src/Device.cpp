@@ -23,10 +23,25 @@ using std::cerr;
 using namespace ScrybeIO;
 
 
-
+/*
 // TODO: Define default constructor
-// Device::Device() {}
+Device::Device() {
+	handle = nullptr;
+	port = 54000;
+	thread_count = 1;
+	buffer_size = 1024;
+	accept_fail_limit = 1;
+	accept_loop_reset = 10;
+	add_fail_limit = 1;
+	add_loop_reset = 10;
+	max_events = 10;
+	max_listen = 100;
+	timeout = 1000;
+	F_running = false;
+	F_stop = false;
 
+}
+*/
 // TODO: Move constructor ?
 
 Device::Device(void(*_handle)(std::string request, int client_sock), const
@@ -42,11 +57,11 @@ Device::Device(void(*_handle)(std::string request, int client_sock), const
 	max_events = IO_Options.get_max_events();
 	max_listen = IO_Options.get_max_listen();
 	timeout = IO_Options.get_timeout();
-	bool F_running = false;
-	bool F_stop = false;
-	bool F_pause = false;
-	bool F_reset_callable = false;
-	bool F_listening = false;
+	F_running = false;
+	F_stop = false;
+	F_pause = false;
+	F_reset_callable = false;
+	F_listening = false;
 }
 
 // TODO: Decide if this is needed
@@ -118,7 +133,7 @@ int Device::set_listen() {
 int Device::start() {
 	if (F_listening == false) {
 		cerr << "Device ERR in start(): ";
-		cerr << "Must call listening() before start()\n";
+		cerr << "Must call set_listen() before start()\n";
 		return -1;
 	}
 	if (F_running == true) {

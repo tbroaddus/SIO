@@ -78,6 +78,8 @@ TEST(DeviceTest, BasicFunctionTest) {
 		"after reset()";
 
 	ASSERT_NE(IO_Device.start(), -1) << "Failure in start() after reset()";
+	
+	std::this_thread::sleep_for(std::chrono::seconds(2));
 
 	ASSERT_EQ(IO_Device.n_threads_running(), 4) << "Failure in "
 		"n_threads_running()";
@@ -103,7 +105,7 @@ TEST(DeviceTest, BasicFunctionTest) {
 	// Testing start() after reset(IO_Device)
 	ASSERT_NE(IO_Device.start(), -1) << "Failure in start() "
 		"after reset(IO_Device)";
-
+	std::this_thread::sleep_for(std::chrono::seconds(2));
 	// Testing n_threads_running() 
 	ASSERT_EQ(IO_Device.n_threads_running(), 1) << "Failure in "
 		"n_threads_running()";
@@ -131,7 +133,7 @@ TEST(DeviceTest, UserErrorTest) {
 	IO_Options.set_port(54000);
 	IO_Options.set_tc(1);
 	IO_Options.set_buffer_size(1024);
-	Io_Options.set_acept_fail_limit(1);
+	IO_Options.set_accept_fail_limit(1);
 	IO_Options.set_accept_loop_reset(10);
 	IO_Options.set_add_fail_limit(1);
 	IO_Options.set_add_loop_reset(10);

@@ -19,6 +19,7 @@
 
 using std::cout;
 using std::endl;
+using std::cerr;
 
 
 
@@ -27,7 +28,7 @@ using std::endl;
 void handle_accept(std::string request, int client_sock) {
 	if (request == "Hello") {
 		std::string confirm("Hello received!");
-		int sendRes = send(client_sock, confirm.c_str(), confirm.size() + 1,
+		int sendRes = send(client_sock, confirm.c_str(), confirm.size(),
 				0);
 		if (sendRes == -1)
 			cout << "Could not send to client!" << std::endl;
@@ -58,7 +59,7 @@ int client_send() {
 		sockaddr_in hint;
 		hint.sin_family = AF_INET;
 		hint.sin_port = htons(port);
-		inet_pton(Af_INET, ipAddress.c_string(), &hint.sin_addr);
+		inet_pton(AF_INET, ipAddress.c_str(), &hint.sin_addr);
 
 		int con_Result = connect(sock, (sockaddr*)&hint, sizeof(hint));
 		if (con_Result == -1) {
@@ -67,24 +68,39 @@ int client_send() {
 		}
 		
 		char buf[1024];
+		bool f_break = false;
 		for (int i = 0; i < 10; i++) {
-			string message = "Hello";
+			std::string message = "Hello";
 			int sendRes = send(sock, message.c_str(), message.size() + 1, 0);
 			if (sendRes == -1) { 
-				cout << "Send failed" << endl;
+				cout << "CLIENT> Send failed" << endl;
 				continue;
 			}
-			memset(buf, 0, 4096);
-			int bytesrec = recv(sock, buf, 4096, 0);
-			if (string(buf, bytesrec) == "Hello received!")
+			memset(buf, 0, 1024);
+			int bytesrec = recv(sock, buf, 1024, 0);
+			if (bytesrec == 0) {
+				cout << "CLIENT> Orderly shutdown by server" << endl;
+				f_break = true;
+				break; // Orderly shutdown
+			}
+			if (bytesrec == -1) {
+				cerr << "CLIENT> Error in client recv\n";
+				f_break = true;
+				break;
+			}
+			if (std::string(buf, bytesrec) == "Hello received!")
 				receive_count++;
 			else {
+				cout << "breaking" << endl;
+				f_break = true;
 				break;
 			}
 		}
 		close(sock);
+		if (f_break) 
+			break;
 	}
-	return receive_count++;
+	return receive_count;
 }
 
 //				NetworkTest
@@ -92,10 +108,19 @@ int client_send() {
 /*
    Simple network test to ensure proper behavior with multiple clients
    connecting and sending messages to a server.
+
+   Server configurations defined in IO_Options:
+   Single threaded
+   Bound to port 54000
+   1024 byte buffer size
+   Accept fail intolerant
+   Add fail intolerant
+   Max return events of 10
+   1s timeout
 */
 TEST(DeviceTest, NetworkTest) {
 
-	Scrybe::Options IO_Options;
+	ScrybeIO::Options IO_Options;
 
 	IO_Options.set_port(54000);
 	IO_Options.set_tc(1);
@@ -120,9 +145,9 @@ TEST(DeviceTest, NetworkTest) {
 
 	std::this_thread::sleep_for(std::chrono::seconds(5));
 
-	ASSERT_EQ(client1.get(), 1000);
-	ASSERT_EQ(client2.get(), 1000);
-	ASSERT_EQ(client3.get(), 1000);
+	EXPECT_EQ(client1.get(), 1000);
+	EXPECT_EQ(client2.get(), 1000);
+	EXPECT_EQ(client3.get(), 1000);
 
 	ASSERT_NE(IO_Device.stop(), -1) << "Failure in stop()";
 

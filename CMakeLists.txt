@@ -7,6 +7,8 @@ set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/bin)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib)
 
+#set(CMAKE_BUILD_TYPE Debug)
+
 include_directories("${PROJECT_SOURCE_DIR}/include"
   "${PROJECT_SOURCE_DIR}/unit-tests"
   ${GTEST_INCLUDE_DIRS}
@@ -29,10 +31,10 @@ target_link_libraries(scrybeio-test Threads::Threads)
 find_package(GTest REQUIRED)
 
 add_executable(runTests 
+  "${PROJECT_SOURCE_DIR}/unit-tests/Example_Test.cpp"
   "${PROJECT_SOURCE_DIR}/src/Device.cpp"
   "${PROJECT_SOURCE_DIR}/src/Worker.cpp"
   "${PROJECT_SOURCE_DIR}/src/Options.cpp"
-  "${PROJECT_SOURCE_DIR}/unit-tests/Example_Test.cpp"
 )
 
 target_link_libraries(runTests 
@@ -42,10 +44,10 @@ target_link_libraries(runTests
 
 # Function Tests
 add_executable(FunctionTests
+  "${PROJECT_SOURCE_DIR}/unit-tests/Function_Test.cpp"
   "${PROJECT_SOURCE_DIR}/src/Device.cpp"
   "${PROJECT_SOURCE_DIR}/src/Worker.cpp"
   "${PROJECT_SOURCE_DIR}/src/Options.cpp"
-  "${PROJECT_SOURCE_DIR}/unit-tests/Function_Test.cpp"
 )
 
 target_link_libraries(FunctionTests 
@@ -55,10 +57,10 @@ target_link_libraries(FunctionTests
 
 # Network Tests
 add_executable(NetworkTests
+  "${PROJECT_SOURCE_DIR}/unit-tests/Network_Test.cpp"
   "${PROJECT_SOURCE_DIR}/src/Device.cpp"
   "${PROJECT_SOURCE_DIR}/src/Worker.cpp"
   "${PROJECT_SOURCE_DIR}/src/Options.cpp"
-  "${PROJECT_SOURCE_DIR}/unit-tests/Network_Test.cpp"
 )
 
 target_link_libraries(NetworkTests 
