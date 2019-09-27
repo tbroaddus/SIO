@@ -27,7 +27,7 @@ void handle_accept(std::string request, int client_sock) {
 }
 
 
-//				BasicFunctionTest
+//				BasicSystemTest
 // ---------------------------------------------------------------------------
 /*
 	Testing basic start(), pause(), reset(), start(), stop() procedure of

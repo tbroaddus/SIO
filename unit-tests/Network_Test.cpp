@@ -143,8 +143,6 @@ TEST(DeviceTest, NetworkTest) {
 	std::future<int> client2 = std::async(std::launch::async, client_send);
 	std::future<int> client3 = std::async(std::launch::async, client_send);
 
-	std::this_thread::sleep_for(std::chrono::seconds(5));
-
 	EXPECT_EQ(client1.get(), 1000);
 	EXPECT_EQ(client2.get(), 1000);
 	EXPECT_EQ(client3.get(), 1000);

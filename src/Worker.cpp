@@ -106,7 +106,7 @@ void Worker::handle_conns(Device& IODev) {
 					}
 					n_accept_loop++;
 					n_add_loop++;
-
+					/*
 					// ----- Testing purposes ----------------------
 
 					char host[NI_MAXHOST];
@@ -129,7 +129,7 @@ void Worker::handle_conns(Device& IODev) {
 					}
 
 					// ----------------------------------------------
-
+					*/
 				} // while()
 				epoll_event event;
 				event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
@@ -172,7 +172,7 @@ void Worker::handle_conns(Device& IODev) {
 						break; // No more data to receive
 					}
 					else if (bytes_rec == 0) {
-						cout << "Connection closed" << endl;
+					//	cout << "Connection closed" << endl;
 						close_fd = true;
 						break;
 					}
