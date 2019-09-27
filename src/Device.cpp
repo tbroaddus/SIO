@@ -23,10 +23,12 @@ using std::cerr;
 using namespace ScrybeIO;
 
 
-/*
+
 // TODO: Define default constructor
 Device::Device() {
 	handle = nullptr;
+	epoll_fd = -1;
+	listen_sock = -1;
 	port = 54000;
 	thread_count = 1;
 	buffer_size = 1024;
@@ -37,16 +39,21 @@ Device::Device() {
 	max_events = 10;
 	max_listen = 100;
 	timeout = 1000;
+	F_init = false;
 	F_running = false;
 	F_stop = false;
-
+	F_pause = false;
+	F_reset_callable = false;
+	F_listening = false;
 }
-*/
+
 // TODO: Move constructor ?
 
 Device::Device(void(*_handle)(std::string request, int client_sock), const
 		Options& IO_Options) {
 	handle = _handle;
+	epoll_fd = -1;
+	listen_sock = -1;
 	port = IO_Options.get_port();
 	thread_count = IO_Options.get_tc();
 	buffer_size = IO_Options.get_buffer_size();
@@ -57,6 +64,7 @@ Device::Device(void(*_handle)(std::string request, int client_sock), const
 	max_events = IO_Options.get_max_events();
 	max_listen = IO_Options.get_max_listen();
 	timeout = IO_Options.get_timeout();
+	F_init = true;
 	F_running = false;
 	F_stop = false;
 	F_pause = false;
@@ -71,11 +79,57 @@ Device::Device(void(*_handle)(std::string request, int client_sock), const
 
 
 
-Device::~Device() {}
+Device::~Device() {
+	if(F_running == true) {
+		this->stop();
+	}
+}
+
+
+
+int Device::init(void(*_handle)(std::string request, int client_sock), const
+		Options& IO_Options) {
+	if (F_init == true) {
+		cerr << "Device ERR in init(): ";
+		cerr << "Device already initialized after default constructor\n";
+		return -1;
+	}
+	handle = _handle;
+	port = IO_Options.get_port();
+	thread_count = IO_Options.get_tc();
+	buffer_size = IO_Options.get_buffer_size();
+	accept_fail_limit = IO_Options.get_accept_fail_limit();
+	accept_loop_reset = IO_Options.get_accept_loop_reset();
+	add_fail_limit = IO_Options.get_add_fail_limit();
+	add_loop_reset = IO_Options.get_add_loop_reset();
+	max_events = IO_Options.get_max_events();
+	max_listen = IO_Options.get_max_listen();
+	timeout = IO_Options.get_timeout();
+	F_init = true;
+	return 0;
+}
+
+
+
+int Device::init(void(*_handle)(std::string request, int client_sock)) {
+	if (F_init == true) {
+		cerr << "Device ERR in init(): ";
+		cerr << "Device already initialized after default constructor\n";
+		return -1;
+	}
+	handle = _handle;
+	F_init = true;
+	return 0;
+}
 
 
 
 int Device::set_listen() {
+	if (F_init == false) { 
+		cerr << "Device ERR in set_listen(): ";
+		cerr << "Device has not been initialized after default constructor\n";
+		return -1;
+	}
 	if (F_running == true) {
 		cerr << "Device ERR in set_listen(): ";
 		cerr << "Device already listening and running\n";
@@ -243,7 +297,7 @@ int Device::pause() {
 int Device::resume() {
 	if (F_pause == false) {
 		cerr << "Device ERR in resume(): ";
-		cerr << "Device was could not be resumed\n";
+		cerr << "Device could not be resumed\n";
 		return -1;
 	}
 	F_reset_callable = false;

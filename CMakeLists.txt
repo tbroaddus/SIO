@@ -43,14 +43,14 @@ target_link_libraries(runTests
 )
 
 # Function Tests
-add_executable(FunctionTests
-  "${PROJECT_SOURCE_DIR}/unit-tests/Function_Test.cpp"
+add_executable(SystemTests
+  "${PROJECT_SOURCE_DIR}/unit-tests/System_Test.cpp"
   "${PROJECT_SOURCE_DIR}/src/Device.cpp"
   "${PROJECT_SOURCE_DIR}/src/Worker.cpp"
   "${PROJECT_SOURCE_DIR}/src/Options.cpp"
 )
 
-target_link_libraries(FunctionTests 
+target_link_libraries(SystemTests 
   ${GTEST_LIBRARIES} 
   Threads::Threads
 )
@@ -64,6 +64,18 @@ add_executable(NetworkTests
 )
 
 target_link_libraries(NetworkTests 
+  ${GTEST_LIBRARIES} 
+  Threads::Threads
+)
+
+add_executable(FunctionTests
+  "${PROJECT_SOURCE_DIR}/unit-tests/Function_Test.cpp"
+  "${PROJECT_SOURCE_DIR}/src/Device.cpp"
+  "${PROJECT_SOURCE_DIR}/src/Worker.cpp"
+  "${PROJECT_SOURCE_DIR}/src/Options.cpp"
+)
+
+target_link_libraries(FunctionTests 
   ${GTEST_LIBRARIES} 
   Threads::Threads
 )

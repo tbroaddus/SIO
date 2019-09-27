@@ -32,12 +32,12 @@ class Device {
 		Device(Device& Device_obj);
 	
 		~Device();
-	/*	
-		int set(void(*_handle)(std::string request, int client_sock), const
+		
+		int init(void(*_handle)(std::string request, int client_sock), const
 				Options& IO_Options);
+		
+		int init(void(*_handle)(std::string request, int client_sock));
 
-		int set(void(*_handle)(std::string request, int client_sock));
-*/
 		int set_listen();
 
 		int start();
@@ -72,7 +72,7 @@ class Device {
 		int max_events;
 		int max_listen;
 		int timeout;
-		bool F_set;
+		bool F_init;
 		bool F_running;
 		bool F_stop;
 		bool F_pause;
