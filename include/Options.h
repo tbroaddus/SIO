@@ -24,20 +24,18 @@ public:
   // Set input buffer size.
   void set_buffer_size(const int _buffer_size);
 
-  /*
-    Set number of accept-connection fails tolerated 
-    within a specified loop period. A value of 1 would make
-    Device accept-fail intolerant. 
-  */
+  
+  // Set number of accept-connection fails tolerated 
+  // within a specified loop period. A value of 1 would make
+  // Device accept-fail intolerant. 
   void set_accept_fail_limit(const int _accept_fail_limit);
 
   // Set accept fail loop period.
   void set_accept_loop_reset(const int _accept_loop_reset);
 
-  /*
-    Set number of add-epoll fails tolerated within a specified loop period.
-    A value of 1 would make Device add-fail intolerant (recommended).
-  */ 
+  
+  // Set number of add-epoll fails tolerated within a specified loop period.
+  // A value of 1 would make Device add-fail intolerant (recommended).
   void set_add_fail_limit(const int _add_fail_limit);
 
   // Set add fail loop period.

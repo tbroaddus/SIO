@@ -23,18 +23,16 @@ class Device {
     
     friend Worker;
 
-    /*
-      Default constructor.
-      Cannot handle connections until init() 
-      is called  to provide handle function.
-    */
+    
+   // Default constructor.
+   // Cannot handle connections until init() 
+   // is called  to provide handle function.
     Device();
 
-    /*
-      Argument intialized constructor.
-      init() does not need to be called since handle 
-      function has been provided.
-    */
+    
+   // Argument intialized constructor.
+   // init() does not need to be called since handle 
+   // function has been provided.
     Device(void(*_handle)(std::string request, int
           client_sock),
         const Options& IO_Options);
@@ -43,18 +41,16 @@ class Device {
     ~Device();
     
 
-    /*
-      Provides device with a handle function and Options object to specify 
-      behavior. Should only be called if default constructor used.
-    */
+    
+   // Provides device with a handle function and Options object to specify 
+   // behavior. Should only be called if default constructor used.
     int init(void(*_handle)(std::string request, int client_sock), const
         Options& IO_Options);
     
-    /*
-      Provides Device with a handle function to specify behavior. 
-      Default values used for Device.
-      Should only be called if default constructor used.
-    */
+    
+    // Provides Device with a handle function to specify behavior. 
+    // Default values used for Device.
+    // Should only be called if default constructor used.
     int init(void(*_handle)(std::string request, int client_sock));
 
     // Initializes Device listening queue. 
@@ -63,35 +59,30 @@ class Device {
     // Starts client handling.
     int start();
 
-    /*
-      Stops client handling and clears all connections.
-      Must call reset() before restarting server with set_listen() and start()
-    */
+    
+    // Stops client handling and clears all connections.
+    // Must call reset() before restarting server with set_listen() and start()
     int stop();
 
-    /*
-      Pauses client handling. 
-      All connections are maintained and Device continues 
-      to listen for new connections.
-    */
+    
+    // Pauses client handling. 
+    // All connections are maintained and Device continues 
+    // to listen for new connections.
     int pause();
 
-    /*
-      Resumes client handling after pause().
-      Cannot be called after stop().
-    */
+    
+    // Resumes client handling after pause().
+    // Cannot be called after stop().
     int resume();
 
-    /*
-      Resets Device's values. Used when either 
-      pause() or stop() has been called.
-    */
+    
+    // Resets Device's values. Used when either 
+    // pause() or stop() has been called.
     int reset();
 
-    /*
-      Initializes Device's values to the ones provied by the Options object.
-      Used when either pause() or stop() has been called.
-    */
+    
+    // Initializes Device's values to the ones provied by the Options object.
+    // Used when either pause() or stop() has been called.
     int reset(const Options& IO_Options);
 
 
