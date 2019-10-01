@@ -1,5 +1,5 @@
-//	File:	Worker.h
-//	Author:	Tanner Broaddus
+//  File: Worker.h
+//  Author: Tanner Broaddus
 
 #ifndef WORKER_H
 #define WORKER_H
@@ -9,29 +9,33 @@ namespace ScrybeIO {
 
 class Device; // Forward Declaration
 
-// class Worker
+// Worker
+// Used by Device for client handling.
 class Worker {
-	
-	public:
+  
+  public:
 
-		Worker();
+    Worker();
 
-		~Worker();
+    ~Worker();
 
-		void handle_conns(Device& IODev);
+    // Starts handling connections.
+    void handle_conns(Device& IODev);
 
-		bool check_running() const;
+    // Returns running status.
+    bool check_running() const;
 
-		bool check_fail() const;
-	
-	private:
+    // Returns fail status.
+    bool check_fail() const;
+  
+  private:
 
-		int n_accept_fail;
-		int n_accept_loop;
-		int n_add_fail;
-		int n_add_loop;
-		bool F_running;
-		bool F_fail;
+    int n_accept_fail;
+    int n_accept_loop;
+    int n_add_fail;
+    int n_add_loop;
+    bool F_running;
+    bool F_fail;
 
 
 }; // class Worker
