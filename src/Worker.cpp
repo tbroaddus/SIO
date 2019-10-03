@@ -129,7 +129,7 @@ void Worker::handle_conns(Device &IODev)
           else {
             inet_ntop(AF_INET, &client_addr.sin_addr, host,
                 NI_MAXHOST);
-            cout << "DEVICE> " host << " connected on " <<
+            cout << "DEVICE> " << host << " connected on " <<
               ntohs(client_addr.sin_port) << endl;
           }
 

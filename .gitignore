@@ -1,3 +1,7 @@
 *.swp
 *.out
-#IO_Device.h#
+build
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+CMakeFiles
