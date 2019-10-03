@@ -15,11 +15,11 @@ notification for the Scrybe blockchain.
 
 using namespace std;
 
-// Simple echo function to send message back to client
-// Handle functions should not return any values and should take a 
-// string and integer as its arguments. 
-// The string will be a message received by a client. 
-// The integer will be the client's socket file descriptor. 
+// -  Simple echo function to send message back to client.
+// -  Handle functions should not return any values and should take a 
+//    string and integer as its arguments. 
+// -  The string will be a message received from a client. 
+// -  The integer will be the client's socket file descriptor. 
 void handle_accept(std::string request, int client_sock) {
   int sendRes = send(client_sock, request.c_str(), request.size() + 1, 0);
   if (sendRes == -1) 
